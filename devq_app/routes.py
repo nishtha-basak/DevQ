@@ -1,15 +1,23 @@
 from flask import render_template, request, redirect, flash, session
 from werkzeug.security import generate_password_hash, check_password_hash
-from devq_app import  db
+from devq_app import db
 from devq_app.models import Query, User
-
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session,current_app as app
+from devq_app.logger import log_event
+from flask import Blueprint, url_for, current_app as app
+from sqlalchemy.orm import aliased
+from datetime import datetime
 
 ROLE_SUFFIX = {
     'developer': 'D',
     'mentor': 'M',
     'admin': 'A'
 }
+
+def get_user_details(user_id):
+    user = User.query.filter_by(userid=user_id).first()
+    if not user:
+        return f"Unknown UserID: {user_id}"
+    return f"[{user.userid}] {user.username} ({user.role})"
 
 @app.route('/')
 def welcome():
@@ -32,9 +40,10 @@ def signup():
 
         hashed_password = generate_password_hash(password)
         user = User(username=username, userid=userid, password=hashed_password, role=role)
-
         db.session.add(user)
         db.session.commit()
+
+        log_event(f"New user registered: {get_user_details(userid)}")
 
         flash(f"Registration successful! Your User ID is {userid}", "success")
         return redirect('/login')
@@ -67,28 +76,25 @@ def login():
         session['username'] = user.username
         session['role'] = user.role
 
+        log_event(f"{get_user_details(user.userid)} logged in.")
+
         flash(f"Welcome, {user.username} ({user.role.title()})!", "success")
 
-        role_redirects = {
+        return redirect({
             'developer': '/developer',
             'mentor': '/mentor',
             'admin': '/admin'
-        }
-
-        return redirect(role_redirects.get(role.lower(), '/'))
+        }.get(role.lower(), '/'))
 
     return render_template('login.html')
 
-
-@app.route('/dashboard')
-def dashboard():
-    if 'userid' not in session:
-        flash("Please login first.", "warning")
-        return redirect('/login')
-    return render_template('dashboard.html')
-
-
-from sqlalchemy.orm import aliased
+@app.route('/logout')
+def logout():
+    user_info = get_user_details(session.get('userid'))
+    session.clear()
+    log_event(f"{user_info} logged out.")
+    flash("You have been logged out.", "info")
+    return redirect('/')
 
 @app.route('/developer', methods=['GET', 'POST'])
 def developer():
@@ -103,15 +109,16 @@ def developer():
         new_query = Query(title=title, description=description, submitted_by=submitted_by)
         db.session.add(new_query)
         db.session.commit()
+
+        log_event(f"Query submitted by {get_user_details(submitted_by)}: Title='{title}', Description='{description}'")
+
         flash("Query submitted successfully!", "success")
         return redirect('/developer')
 
     Mentor = aliased(User)
-    queries = db.session.query(
-        Query,
-        Mentor.username.label('mentor_name')
-    ).outerjoin(Mentor, Query.assigned_to == Mentor.userid
-    ).filter(Query.submitted_by == session['userid']).all()
+    queries = db.session.query(Query, Mentor.username.label('mentor_name')) \
+        .outerjoin(Mentor, Query.assigned_to == Mentor.userid) \
+        .filter(Query.submitted_by == session['userid']).all()
 
     enriched_queries = []
     for q, mentor_name in queries:
@@ -137,9 +144,15 @@ def edit_query(qid):
         return redirect('/developer')
 
     if request.method == 'POST':
+        old_title, old_desc = query.title, query.description
         query.title = request.form['title']
         query.description = request.form['description']
         db.session.commit()
+
+        log_event(f"{get_user_details(session['userid'])} edited query {qid}.\n"
+                  f"Old Title: '{old_title}', New Title: '{query.title}'\n"
+                  f"Old Desc: '{old_desc}', New Desc: '{query.description}'")
+
         flash("Query updated successfully.", "success")
         return redirect('/developer')
 
@@ -149,6 +162,7 @@ def edit_query(qid):
 def delete_query(qid):
     q = Query.query.get_or_404(qid)
     if q.submitted_by == session['userid'] and q.status != 'Resolved':
+        log_event(f"{get_user_details(session['userid'])} deleted query {qid}: Title='{q.title}', Description='{q.description}'")
         db.session.delete(q)
         db.session.commit()
         flash("Query deleted.", "success")
@@ -156,27 +170,36 @@ def delete_query(qid):
         flash("Cannot delete this query.", "danger")
     return redirect('/developer')
 
-
-
-
-
-
 @app.route('/mentor')
 def mentor():
     if 'userid' not in session or session.get('role') != 'mentor':
         flash("Access restricted to mentors only.", "danger")
         return redirect('/login')
 
-    # Fetch queries either unassigned or assigned to the current mentor
-    queries = Query.query.filter((Query.assigned_to==None)|(Query.assigned_to==session['userid'])).all()
+    queries = Query.query.filter((Query.assigned_to == None) | (Query.assigned_to == session['userid'])).all()
     for q in queries:
         dev = User.query.filter_by(userid=q.submitted_by).first()
-        q.dev_name = dev.username
+        q.dev_name = dev.username if dev else 'Unknown'
     return render_template('mentor.html', queries=queries)
+
+@app.route('/mentor/accept/<int:query_id>', methods=['POST'])
+def accept_query(query_id):
+    query = Query.query.get_or_404(query_id)
+    if 'userid' in session and session['role'] == 'mentor':
+        query.assigned_to = session['userid']
+        query.status = 'In Progress'
+        db.session.commit()
+        log_event(f"{get_user_details(session['userid'])} accepted query {query_id}: Title='{query.title}', Desc='{query.description}'")
+        flash("Query accepted and assigned to you.", "success")
+    else:
+        flash("Unauthorized access.", "danger")
+    return redirect('/mentor')
+
 @app.route('/mentor/revoke/<int:qid>', methods=['POST'])
 def revoke_query(qid):
     q = Query.query.get_or_404(qid)
     if q.assigned_to == session['userid'] and q.status != 'Resolved':
+        log_event(f"{get_user_details(session['userid'])} revoked query {qid}: Title='{q.title}'")
         q.assigned_to = None
         q.status = 'Pending'
         db.session.commit()
@@ -185,38 +208,23 @@ def revoke_query(qid):
         flash("Cannot revoke.", "danger")
     return redirect('/mentor')
 
-@app.route('/mentor/accept/<int:query_id>', methods=['POST'])
-def accept_query(query_id):
-    if 'userid' not in session or session.get('role') != 'mentor':
-        flash("Unauthorized access.", "danger")
-        return redirect('/login')
-
-    query = Query.query.get(query_id)
-    if query:
-        query.assigned_to = session['userid']
-        query.status = 'In Progress'
-        db.session.commit()
-        flash("Query accepted and assigned to you.", "success")
-    else:
-        flash("Query not found.", "danger")
-
-    return redirect('/mentor')
-
 @app.route('/mentor/update_status/<int:query_id>', methods=['POST'])
 def update_status(query_id):
-    if 'userid' not in session or session.get('role') != 'mentor':
-        flash("Unauthorized access.", "danger")
-        return redirect('/login')
-
     new_status = request.form.get('status')
-    query = Query.query.get(query_id)
-    if query and query.assigned_to == session['userid']:
+    query = Query.query.get_or_404(query_id)
+    if query.assigned_to == session['userid']:
+        old_status = query.status
         query.status = new_status
         db.session.commit()
+        mentor = User.query.filter_by(userid=session['userid']).first()
+        log_event(
+            f"Query status updated by Mentor {mentor.username} (ID: {mentor.userid}, Role: {mentor.role}) "
+            f"from '{old_status}' to '{new_status}' for query ID {query.id} titled '{query.title}', "
+            f"Description: '{query.description}' at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
         flash("Status updated successfully.", "success")
     else:
-        flash("Query not found or unauthorized.", "danger")
-
+        flash("Unauthorized.", "danger")
     return redirect('/mentor')
 
 @app.route('/mentor/solve/<int:qid>', methods=['POST'])
@@ -228,10 +236,9 @@ def solve_query(qid):
     q.solution = request.form['solution']
     q.status = 'Resolved'
     db.session.commit()
+    log_event(f"{get_user_details(session['userid'])} resolved query {qid}: Title='{q.title}', Solution='{q.solution}'")
     flash("Solution submitted.", "success")
     return redirect('/mentor')
-
-from sqlalchemy.orm import aliased
 
 @app.route('/admin')
 def admin():
@@ -241,75 +248,59 @@ def admin():
     Developer = aliased(User)
     Mentor = aliased(User)
 
-    raw_query_data = db.session.query(
-        Query,
-        Developer.username.label('developer_name'),
-        Mentor.username.label('mentor_name')
-    ).outerjoin(Developer, Query.submitted_by == Developer.userid
-    ).outerjoin(Mentor, Query.assigned_to == Mentor.userid
-    ).all()
+    raw_query_data = db.session.query(Query, Developer.username.label('developer_name'), Mentor.username.label('mentor_name')) \
+        .outerjoin(Developer, Query.submitted_by == Developer.userid) \
+        .outerjoin(Mentor, Query.assigned_to == Mentor.userid).all()
 
-    # Format: make `query` have `developer_name` and `mentor_name` as attributes
     queries = []
     for query, dev_name, ment_name in raw_query_data:
         query.developer_name = dev_name
         query.mentor_name = ment_name
         queries.append(query)
 
-    # All mentor user objects
     all_mentors = User.query.filter_by(role='mentor').all()
-
-    # Mentors currently assigned to at least one query
-    assigned_mentor_ids = [q.assigned_to for q in Query.query.filter(Query.assigned_to.isnot(None)).all()]
-    free_mentors = [mentor for mentor in all_mentors if mentor.userid not in assigned_mentor_ids]
+    assigned_ids = [q.assigned_to for q in Query.query.filter(Query.assigned_to.isnot(None)).all()]
+    free_mentors = [m for m in all_mentors if m.userid not in assigned_ids]
 
     return render_template('admin.html', queries=queries, mentors=free_mentors)
 
 @app.route('/admin/assign/<int:query_id>', methods=['POST'])
 def assign_mentor(query_id):
-    if 'userid' not in session or session['role'].lower() != 'admin':
+    if session.get('role') != 'admin':
         flash("Unauthorized access.", "danger")
         return redirect('/login')
 
     mentor_id = request.form['mentor_id']
-    query = Query.query.get(query_id)
-
+    query = Query.query.get_or_404(query_id)
     already_assigned = Query.query.filter_by(assigned_to=mentor_id).first()
 
-    if not query:
-        flash("Query not found.", "danger")
-    elif query.assigned_to:
-        flash("This query is already assigned to a mentor.", "warning")
+    if query.assigned_to:
+        flash("This query is already assigned.", "warning")
     elif already_assigned:
         flash("Mentor already assigned to another query.", "danger")
     else:
         query.assigned_to = mentor_id
         query.status = 'In Progress'
         db.session.commit()
+        log_event(f"{get_user_details(session['userid'])} assigned mentor {get_user_details(mentor_id)} to query {query_id}")
         flash("Mentor assigned successfully.", "success")
 
     return redirect('/admin')
+
 @app.route('/admin/revoke/<int:query_id>', methods=['POST'])
 def revoke_mentor(query_id):
-    if 'userid' not in session or session.get('role') != 'admin':
+    if session.get('role') != 'admin':
         flash("Unauthorized access.", "danger")
         return redirect('/login')
 
-    query = Query.query.get(query_id)
-    if not query:
-        flash("Query not found.", "danger")
-    elif not query.assigned_to:
-        flash("No mentor is currently assigned to this query.", "info")
+    query = Query.query.get_or_404(query_id)
+    if not query.assigned_to:
+        flash("No mentor assigned.", "info")
     else:
+        log_event(f"{get_user_details(session['userid'])} revoked mentor {get_user_details(query.assigned_to)} from query {query_id}")
         query.assigned_to = None
         query.status = 'Pending'
         db.session.commit()
-        flash("Mentor assignment revoked successfully.", "success")
+        flash("Mentor assignment revoked.", "success")
 
     return redirect('/admin')
-
-@app.route('/logout')
-def logout():
-    session.clear()
-    flash("You have been logged out.", "info")
-    return redirect('/')
