@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head><title>DevQ | Submit Query</title></head>
+<body>
+    <p>Welcome {{ session['name'] }} | <a href="/logout">Logout</a></p>
+
+  <h2>Submit a Developer Query</h2>
+  <form action="/submit" method="post">
+    <input type="text" name="title" placeholder="Query Title" required><br>
+    <textarea name="description" placeholder="Describe your issue" required></textarea><br>
+    <button type="submit">Submit</button>
+  </form>
+  <a href="/mentor">Mentor Dashboard</a> | <a href="/admin">Admin View</a>
+</body>
+</html>

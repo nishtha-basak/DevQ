@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mentor Dashboard - DevQ</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container mt-4">
+    <h2>Welcome, {{ session.username }} (Mentor)</h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }}">{{ message }}</div>
+        {% endfor %}
+    {% endwith %}
+
+    <div class="card">
+        <div class="card-header">Assigned or Available Queries</div>
+        <div class="card-body">
+            {% if queries %}
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Title</th>
+                            <th>Description</th>
+                            <th>Developer</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for q in queries %}
+                        <tr>
+                            <td>{{ q.title }}</td>
+                            <td>{{ q.description }}</td>
+                            <td>{{ q.dev_name }}</td>
+                            <td>{{ q.status }}</td>
+                            <td>
+                                {% if not q.assigned_to %}
+                                    <form method="POST" action="/mentor/accept/{{ q.id }}" style="display:inline-block;">
+                                        <button type="submit" class="btn btn-sm btn-primary">Accept</button>
+                                    </form>
+                                {% elif q.assigned_to == session.userid %}
+                                    <!-- Update status -->
+                                    <form method="POST" action="/mentor/update_status/{{ q.id }}" class="d-inline-block me-1">
+                                        <select name="status" class="form-select form-select-sm d-inline-block" style="width:auto;">
+                                            <option value="In Progress" {% if q.status=='In Progress' %}selected{% endif %}>In Progress</option>
+                                            <option value="Resolved" {% if q.status=='Resolved' %}selected{% endif %}>Resolved</option>
+                                        </select>
+                                        <button class="btn btn-sm btn-success">Update</button>
+                                    </form>
+                                    <!-- Solution input -->
+                                    {% if q.status != 'Resolved' %}
+                                    <form method="POST" action="/mentor/solve/{{ q.id }}" class="d-inline-block">
+                                        <input type="text" name="solution" placeholder="Solution summary" required class="form-control form-control-sm d-inline-block" style="width:200px;">
+                                        <button class="btn btn-sm btn-success">Solve</button>
+                                    </form>
+                                    {% endif %}
+                                    <!-- Revoke -->
+                                    {% if q.status != 'Resolved' %}
+                                        <form method="POST" action="/mentor/revoke/{{ q.id }}" class="d-inline-block">
+                                            <button class="btn btn-sm btn-warning">Revoke</button>
+                                        </form>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">Assigned to someone else</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p>No queries available.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <a href="/logout" class="btn btn-secondary">Logout</a>
+    </div>
+</div>
+</body>
+</html>

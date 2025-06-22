@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<head><title>Dashboard</title></head>
+<body>
+    <h2>Welcome {{ session.get('username') }} ({{ session.get('role') }})</h2>
+    <p>Select your role page:</p>
+    <a href="{{ url_for('developer_page') }}">Developer</a> |
+    <a href="{{ url_for('mentor_page') }}">Mentor</a> |
+    <a href="{{ url_for('admin_page') }}">Admin</a>
+    <br><br>
+    <a href="{{ url_for('logout') }}">Logout</a>
+</body>
+</html>
