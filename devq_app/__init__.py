@@ -2,18 +2,23 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_session import Session
 from flask_socketio import SocketIO
+import os
+from dotenv import load_dotenv
 
 # Initialize extensions globally
 socketio = SocketIO(cors_allowed_origins="*")  # Allow frontend access from any origin
 db = SQLAlchemy()
+load_dotenv()
 
 def create_app():
     app = Flask(__name__)
-    app.secret_key = "your_secret_key"
+    # app.secret_key = "your_secret_key"
 
     # Database Configuration
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:NBsql2003*@localhost:5432/devqdb'
+   
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 
     # Session Configuration
     app.config['SESSION_TYPE'] = 'filesystem'

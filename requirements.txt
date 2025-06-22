@@ -4,3 +4,4 @@ gunicorn
 flask-socketio
 eventlet
 flask-session
+dotenv
