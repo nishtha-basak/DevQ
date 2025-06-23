@@ -293,10 +293,13 @@ def update_profile():
         return redirect('/login')
 
     if request.method == 'POST':
-        new_username = request.form.get('username')
-        new_password = request.form.get('password')
+        new_username = request.form.get('username', '').strip()
+        new_password = request.form.get('password', '').strip()
 
-        user.username = new_username
+        if new_username:
+            user.username = new_username
+            session['username'] = new_username  # Update session value too
+
         if new_password:
             user.password = generate_password_hash(new_password)
 
