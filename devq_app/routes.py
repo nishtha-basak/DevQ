@@ -12,6 +12,9 @@ ROLE_SUFFIX = {
     'mentor': 'M',
     'admin': 'A'
 }
+@routes.route('/healthz')
+def health_check():
+    return "OK", 200
 
 @routes.route('/')
 def welcome():

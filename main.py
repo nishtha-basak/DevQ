@@ -1,13 +1,13 @@
 from devq_app import create_app, socketio
+import os
+
+print("⚙️ Starting Flask App")
+print("Using DB URL:", os.environ.get("DATABASE_URL"))
 
 app = create_app()
 
-if __name__ == "__main__":
-    socketio.run(app, debug=True)
+# This prints all routes (for debugging)
 with app.app_context():
     print("Registered routes:")
     for rule in app.url_map.iter_rules():
         print(rule)
-
-# This is the entry point for the Flask application.
-# It creates the Flask app using the factory function and runs the SocketIO server.
