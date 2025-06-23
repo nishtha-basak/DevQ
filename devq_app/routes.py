@@ -283,6 +283,9 @@ def revoke_mentor(query_id):
 @routes.route('/update_profile', methods=['GET', 'POST'])
 def update_profile():
     userid = session.get('userid')
+    print("USERID:", userid)
+    print("POST DATA:", request.form)
+
     if not userid:
         flash("Please log in first.", "danger")
         return redirect('/login')
@@ -292,20 +295,24 @@ def update_profile():
         flash("User not found.", "danger")
         return redirect('/login')
 
-    if request.method == 'POST':
-        new_username = request.form.get('username', '').strip()
-        new_password = request.form.get('password', '').strip()
+    try:
+        if request.method == 'POST':
+            new_username = request.form.get('username')
+            new_password = request.form.get('password')
 
-        if new_username:
             user.username = new_username
-            session['username'] = new_username  # Update session value too
+            if new_password and new_password.strip():
+                user.password = generate_password_hash(new_password)
 
-        if new_password:
-            user.password = generate_password_hash(new_password)
-
-        db.session.commit()
-        flash("Profile updated successfully.", "success")
-        return redirect(f"/{user.role.lower()}")
+            db.session.commit()
+            flash("Profile updated successfully.", "success")
+            return redirect(f"/{user.role.lower()}")
+    except Exception as e:
+        print("Error in update_profile:", e)
+        import traceback
+        print(traceback.format_exc())
+        flash("An error occurred. Please try again later.", "danger")
+    return redirect(f"/{user.role.lower()}")
 
     return render_template('update_profile.html', user=user)
 
