@@ -312,8 +312,7 @@ def update_profile():
         import traceback
         print(traceback.format_exc())
         flash("An error occurred. Please try again later.", "danger")
-    return redirect(f"/{user.role.lower()}")
-
+    
     return render_template('update_profile.html', user=user)
 
 
