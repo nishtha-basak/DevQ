@@ -280,27 +280,32 @@ def revoke_mentor(query_id):
 
 # ---------------- Profile Management ----------------
 
-@routes.route('/profile', methods=['GET', 'POST'])
+@routes.route('/update_profile', methods=['GET', 'POST'])
+
 def update_profile():
-    if 'userid' not in session:
-        flash("Login required.", "danger")
+    userid = session.get('userid')
+    if not userid:
+        flash("Please log in first.", "danger")
         return redirect('/login')
 
-    user = User.query.filter_by(userid=session['userid']).first()
-    if request.method == 'POST':
-        new_username = request.form['username']
-        new_password = request.form['password']
+    user = User.query.filter_by(userid=userid).first()
+    if not user:
+        flash("User not found.", "danger")
+        return redirect('/login')
 
-        if new_username:
-            user.username = new_username
+    if request.method == 'POST':
+        new_username = request.form.get('username')
+        new_password = request.form.get('password')
+
+        user.username = new_username
         if new_password:
             user.password = generate_password_hash(new_password)
 
         db.session.commit()
         flash("Profile updated successfully.", "success")
-        return redirect(f"/{session['role']}")
+        return redirect(f"/{user.role.lower()}")
 
-    return render_template("update_profile.html", user=user)
+    return render_template('update_profile.html', user=user)
 
 
 @routes.route('/delete_account', methods=['POST'])

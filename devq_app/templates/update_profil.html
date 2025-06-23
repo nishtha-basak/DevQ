@@ -9,16 +9,13 @@
 <body class="container mt-5">
     <h2 class="mb-4">Update Your Profile</h2>
     <form method="POST">
-        <div class="mb-3">
-            <label for="username" class="form-label">New Username</label>
-            <input type="text" class="form-control" name="username" id="username" value="{{ user.username }}" required>
-        </div>
-        <div class="mb-3">
-            <label for="password" class="form-label">New Password <small class="text-muted">(leave blank to keep current)</small></label>
-            <input type="password" class="form-control" name="password" id="password">
-        </div>
-        <button type="submit" class="btn btn-success">Save Changes</button>
-        <a href="/{{ session['role'] }}" class="btn btn-secondary">Cancel</a>
-    </form>
-</body>
-</html>
+    <div class="mb-3">
+        <label>Username:</label>
+        <input type="text" name="username" value="{{ user.username }}" class="form-control" required>
+    </div>
+    <div class="mb-3">
+        <label>New Password:</label>
+        <input type="password" name="password" placeholder="Leave blank to keep current password" class="form-control">
+    </div>
+    <button type="submit" class="btn btn-primary">Update Profile</button>
+</form>
