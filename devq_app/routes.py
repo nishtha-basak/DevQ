@@ -281,7 +281,6 @@ def revoke_mentor(query_id):
 # ---------------- Profile Management ----------------
 
 @routes.route('/update_profile', methods=['GET', 'POST'])
-
 def update_profile():
     userid = session.get('userid')
     if not userid:
