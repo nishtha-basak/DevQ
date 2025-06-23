@@ -277,3 +277,45 @@ def revoke_mentor(query_id):
         socketio.emit('status_update', {'title': query.title, 'status': 'Pending'})
         flash("Revoked.", "success")
     return redirect('/admin')
+
+# ---------------- Profile Management ----------------
+
+@routes.route('/profile', methods=['GET', 'POST'])
+def update_profile():
+    if 'userid' not in session:
+        flash("Login required.", "danger")
+        return redirect('/login')
+
+    user = User.query.filter_by(userid=session['userid']).first()
+    if request.method == 'POST':
+        new_username = request.form['username']
+        new_password = request.form['password']
+
+        if new_username:
+            user.username = new_username
+        if new_password:
+            user.password = generate_password_hash(new_password)
+
+        db.session.commit()
+        flash("Profile updated successfully.", "success")
+        return redirect(f"/{session['role']}")
+
+    return render_template("update_profile.html", user=user)
+
+
+@routes.route('/delete_account', methods=['POST'])
+def delete_account():
+    if 'userid' not in session:
+        return redirect('/login')
+
+    user = User.query.filter_by(userid=session['userid']).first()
+
+    # Also delete user's queries
+    Query.query.filter((Query.submitted_by == user.userid) | (Query.assigned_to == user.userid)).delete()
+    db.session.delete(user)
+    db.session.commit()
+
+    log_event(f"Account Deleted: {user.username} (ID: {user.userid}, Role: {user.role})")
+    session.clear()
+    flash("Your account has been deleted.", "info")
+    return redirect('/')

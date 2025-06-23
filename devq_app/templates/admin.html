@@ -1,5 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+.toast-container {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 9999;
+}
+</style>
+
 <head>
     <meta charset="UTF-8">
     <title>Admin Dashboard</title>
@@ -8,8 +18,28 @@
 </head>
 <body>
 <div class="container mt-4">
-    <h2 class="mb-4">Admin Dashboard - {{ session['username'] }}</h2>
-    <a href="/logout" class="btn btn-danger mb-3">Logout</a>
+<div class="toast-container" id="toastContainer"></div>
+
+    <h2 class="mb-4">Developer Dashboard - {{ session['username'] }}</h2>
+<p class="text-muted">DevQ | Developer Query Optimizer</p>
+
+    <div class="d-flex justify-content-end mb-3">
+    <a href="/logout" class="btn btn-danger me-2">Logout</a>
+    
+    <div class="dropdown">
+        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Settings
+        </button>
+        <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="/profile">Edit Profile</a></li>
+            <li>
+                <form method="POST" action="/delete_account" onsubmit="return confirm('Are you sure you want to delete your account permanently?');">
+                    <button class="dropdown-item text-danger" type="submit">Delete Account</button>
+                </form>
+            </li>
+        </ul>
+    </div>
+</div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% for category, message in messages %}
@@ -71,5 +101,35 @@
         $('#adminTable').DataTable();
     });
 </script>
+
+<script>
+    const socket = io();
+
+    function showToast(message, bg = 'primary') {
+        const toastId = Date.now();
+        const toastHtml = `
+          <div id="toast-${toastId}" class="toast align-items-center text-white bg-${bg} border-0 mb-2" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000">
+              <div class="d-flex">
+                  <div class="toast-body">${message}</div>
+                  <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+              </div>
+          </div>`;
+        const container = document.getElementById('toastContainer');
+        container.insertAdjacentHTML('beforeend', toastHtml);
+        const toast = new bootstrap.Toast(document.getElementById(`toast-${toastId}`));
+        toast.show();
+    }
+
+    socket.on('new_query', data => {
+        showToast(`New query submitted: ${data.title}`, 'success');
+        setTimeout(() => location.reload(), 2000);
+    });
+
+    socket.on('status_update', data => {
+        showToast(`Query status updated: ${data.title} → ${data.status}`, 'info');
+        setTimeout(() => location.reload(), 2000);
+    });
+</script>
+
 </body>
 </html>
