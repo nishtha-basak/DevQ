@@ -312,9 +312,16 @@ def update_profile():
         import traceback
         print(traceback.format_exc())
         flash("An error occurred. Please try again later.", "danger")
-    
-    return render_template('update_profile.html', user=user)
+    print("Rendering template with user:", user)
 
+    try:
+        return render_template('update_profile.html', user=user)
+    except Exception as e:
+        print("Template rendering error:", e)
+        import traceback
+        print(traceback.format_exc())
+        flash("Template error. Check server logs.", "danger")
+        return redirect(f"/{user.role.lower()}")
 
 @routes.route('/delete_account', methods=['POST'])
 def delete_account():
