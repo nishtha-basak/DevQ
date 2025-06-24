@@ -21,10 +21,10 @@ class Query(db.Model):
     description = db.Column(db.Text, nullable=False)
     
     # The User ID of the Developer who submitted the query
-    submitted_by = db.Column(db.String(10), db.ForeignKey('user.id'), nullable=False)
+    submitted_by = db.Column(db.String(10), db.ForeignKey('user.userid'), nullable=False)
 
     # The User ID of the Mentor who is assigned
-    assigned_to = db.Column(db.String(10), db.ForeignKey('user.id'), nullable=True)
+    assigned_to = db.Column(db.String(10), db.ForeignKey('user.userid'), nullable=True)
     
     status = db.Column(db.String(20), default='Open')
     solution = db.Column(db.Text, nullable=True)  # store solution text
