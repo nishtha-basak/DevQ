@@ -41,6 +41,7 @@ def signup():
         db.session.add(user)
         db.session.commit()
 
+        log_event(f"Sign-Up: {user.username} (ID: {user.userid}, Role: {user.role})")
         flash(f"Registered! Your ID is {userid}", "success")
         return redirect('/login')
 
@@ -83,7 +84,8 @@ def login():
 def logout():
     user = session.get('username', 'Unknown')
     role = session.get('role', 'Unknown')
-    log_event(f"Logout: {user} ({role})")
+    userid = session.get('userid', 'Unknown')
+    log_event(f"Logout: {user} ({role}, ID: {userid})")
     session.clear()
     flash("Logged out.", "info")
     return redirect('/')
@@ -105,7 +107,13 @@ def developer():
         db.session.commit()
 
         log_event(f"Query Submitted by {session['username']} ({session['userid']}): {title} - {description}")
-        socketio.emit('new_query', {'title': title})
+        socketio.emit('new_query', {
+            'title': title,
+            'description': description,
+            'submitted_by': submitted_by,
+            'username': session['username']
+        })
+
         flash("Query submitted!", "success")
         return redirect('/developer')
 
@@ -132,6 +140,16 @@ def edit_query(qid):
         query.description = request.form['description']
         db.session.commit()
         log_event(f"Query Edited by {session['username']} ({session['userid']}): {query.title}")
+
+        socketio.emit('query_edited', {
+            'qid': query.id,
+            'title': query.title,
+            'description': query.description,
+            'submitted_by': query.submitted_by,
+            'edited_by': session['username']
+        })
+
+
         flash("Query updated.", "success")
         return redirect('/developer')
     return render_template('edit_query.html', query=query)
@@ -143,6 +161,13 @@ def delete_query(qid):
         db.session.delete(q)
         db.session.commit()
         log_event(f"Query Deleted by {session['username']} ({session['userid']}): {q.title}")
+        socketio.emit('query_deleted', {
+            'qid': q.id,
+            'title': q.title,
+            'submitted_by': q.submitted_by,
+            'deleted_by': session['username']
+        })
+
         flash("Query deleted.", "success")
     else:
         flash("Not allowed.", "danger")
@@ -172,7 +197,15 @@ def accept_query(query_id):
         query.status = 'In Progress'
         db.session.commit()
         log_event(f"Query Accepted by Mentor {session['username']} ({session['userid']}): {query.title}")
-        socketio.emit('status_update', {'title': query.title, 'status': 'In Progress'})
+        
+        socketio.emit('query_assigned', {
+            'query_id': query.id,
+            'title': query.title,
+            'assigned_to': session['userid'],
+            'mentor_name': session['username'],
+            'status': 'In Progress'
+        })
+
         flash("Accepted.", "success")
     else:
         flash("Already assigned.", "warning")
@@ -186,7 +219,14 @@ def revoke_query(qid):
         q.status = 'Pending'
         db.session.commit()
         log_event(f"Mentor {session['username']} ({session['userid']}) revoked query: {q.title}")
-        socketio.emit('status_update', {'title': q.title, 'status': 'Pending'})
+        
+        socketio.emit('query_revoked', {
+            'query_id': q.id,
+            'title': q.title,
+            'revoked_by': session['username'],
+            'status': 'Pending'
+        })
+
         flash("Revoked.", "info")
     else:
         flash("Unauthorized.", "danger")
@@ -218,7 +258,17 @@ def solve_query(qid):
     q.status = 'Resolved'
     db.session.commit()
     log_event(f"Mentor {session['username']} ({session['userid']}) resolved query {q.title} with solution update.")
-    socketio.emit('status_update', {'title': q.title, 'status': 'Resolved'})
+    
+    
+    socketio.emit('solution_submitted', {
+        'query_id': q.id,
+        'title': q.title,
+        'mentor_id': session['userid'],
+        'mentor_name': session['username'],
+        'status': 'Resolved',
+        'solution_text': q.solution
+    })
+
     flash("Solution submitted.", "success")
     return redirect('/mentor')
 
@@ -260,7 +310,16 @@ def assign_mentor(query_id):
         query.status = 'In Progress'
         db.session.commit()
         log_event(f"Admin {session['username']} assigned mentor {mentor_id} to query {query.title}")
-        socketio.emit('status_update', {'title': query.title, 'status': 'In Progress'})
+        
+        socketio.emit('query_assigned_admin', {
+                'query_id': query.id,
+                'title': query.title,
+                'assigned_to': mentor_id,
+                'mentor_id': mentor_id,
+                'admin_name': session['username'],
+                'status': 'In Progress'
+        })
+
         flash("Mentor assigned.", "success")
     return redirect('/admin')
 
@@ -274,7 +333,15 @@ def revoke_mentor(query_id):
         query.assigned_to = None
         query.status = 'Pending'
         db.session.commit()
-        socketio.emit('status_update', {'title': query.title, 'status': 'Pending'})
+        
+        socketio.emit('query_revoked_admin', {
+                'query_id': query.id,
+                'title': query.title,
+                'revoked_by': session['username'],
+                'admin_name': session['username'],
+                'status': 'Pending'
+        })
+
         flash("Revoked.", "success")
     return redirect('/admin')
 
