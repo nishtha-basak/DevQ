@@ -6,7 +6,7 @@ class User(db.Model):
     userid = db.Column(db.String(50), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False)
-    email = db.Column(db.String(100), unique=True, nullable=False)
+    
 
     #Define relationships
     queries_submitted = db.relationship('Query', back_populates='submitter', foreign_keys='Query.submitted_by')
