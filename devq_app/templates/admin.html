@@ -85,20 +85,16 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.min.js"></script>
 <script>
-    var socket = io(); // Connect to the Socket.IO server (defaults to current host/port)
+    var socket = io();
 
     socket.on('connect', function() {
         console.log('Connected to Socket.IO server!');
     });
 
-    // Re-confirming auto-refresh for DataTables
     socket.on('query_updated', function(data) {
         console.log('Real-time update received:', data);
-        if (typeof $.fn.DataTable !== 'undefined' && $.fn.DataTable.isDataTable('#adminTable')) {
-            $('#adminTable').DataTable().ajax.reload(null, false); // Reload without resetting pagination
-        } else {
-            window.location.reload(); 
-        }
+        // FOR ADMIN DASHBOARD: Always reload the page for consistent data refresh
+        window.location.reload(); 
     });
 
     socket.on('disconnect', function() {
@@ -109,6 +105,9 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
-<script>$(document).ready(() => $('#adminTable').DataTable());</script>
+<script>
+    // Initialize DataTables normally on page load
+    $(document).ready(() => $('#adminTable').DataTable());
+</script>
 </body>
 </html>

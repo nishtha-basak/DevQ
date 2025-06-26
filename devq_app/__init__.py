@@ -73,7 +73,7 @@ def create_app():
                 else:
                     log_event("APScheduler: No queries were assigned in this run.")
 
-        app.scheduler.add_job(func=scheduled_assignment_job, trigger="interval", minutes=2) # Changed to minutes=2
+        app.scheduler.add_job(func=scheduled_assignment_job, trigger="interval", seconds=10) # Changed to minutes=2
         app.scheduler.start()
         log_event("APScheduler started and scheduled automated query assignment job.")
 
