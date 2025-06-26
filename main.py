@@ -11,3 +11,8 @@ with app.app_context():
     print("Registered routes:")
     for rule in app.url_map.iter_rules():
         print(rule)
+# Add this block to run the development server
+if __name__ == '__main__':
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000)
+    # Alternatively, for basic Flask without SocketIO integration needed for running:
+    # app.run(debug=True, host='0.0.0.0', port=5000)

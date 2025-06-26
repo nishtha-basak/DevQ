@@ -1,0 +1,34 @@
+[2025-06-26 22:49:54] Sign-Up: dev (ID: 108D, Role: developer)
+[2025-06-26 22:50:07] Login: dev (ID: 108D, Role: developer)
+[2025-06-26 22:50:27] Query Submitted by dev (108D): new query by dev - testing
+[2025-06-26 22:50:47] Query Edited by dev (108D): new query by dev
+[2025-06-26 22:50:52] Query Deleted by dev (108D): new query by dev
+[2025-06-26 22:50:58] Logout: dev (developer, ID: 108D)
+[2025-06-26 22:51:15] Sign-Up: mentor (ID: 109M, Role: mentor)
+[2025-06-26 22:51:25] Login: mentor (ID: 109M, Role: mentor)
+[2025-06-26 22:51:58] Logout: mentor (mentor, ID: 109M)
+[2025-06-26 22:52:24] Login: dev (ID: 108D, Role: developer)
+[2025-06-26 22:52:40] Query Submitted by dev (108D): new query  - testting by dev
+[2025-06-26 22:52:47] Logout: dev (developer, ID: 108D)
+[2025-06-26 22:52:56] Login: mentor (ID: 109M, Role: mentor)
+[2025-06-26 22:53:23] Query Accepted by Mentor mentor (109M): new query 
+[2025-06-26 22:53:54] Mentor mentor (109M) revoked query: new query 
+[2025-06-26 22:53:59] Query Accepted by Mentor mentor (109M): new query 
+[2025-06-26 22:54:07] Mentor mentor (109M) updated status from In Progress to Pending for: new query 
+[2025-06-26 22:54:14] Mentor mentor (109M) updated status from Pending to In Progress for: new query 
+[2025-06-26 22:54:19] Mentor mentor (109M) updated status from In Progress to Resolved for: new query 
+[2025-06-26 22:54:32] Mentor mentor (109M) resolved query new query  with solution update.
+[2025-06-26 22:54:41] Logout: mentor (mentor, ID: 109M)
+[2025-06-26 22:55:01] Sign-Up: admin (ID: 110A, Role: admin)
+[2025-06-26 22:55:09] Login: admin (ID: 110A, Role: admin)
+[2025-06-26 22:55:32] Admin admin assigned mentor 102M to query LOG 1
+[2025-06-26 22:55:39] Admin admin revoked mentor 109M from new query 
+[2025-06-26 22:55:41] Admin admin revoked mentor 104M from logging 
+[2025-06-26 22:55:43] Admin admin revoked mentor 102M from LOG 1
+[2025-06-26 22:56:41] Admin admin assigned mentor 109M to query new query 
+[2025-06-26 22:56:55] Admin admin assigned mentor 102M to query LOG 1
+[2025-06-26 22:56:58] Admin admin assigned mentor 104M to query issue 2
+[2025-06-26 22:57:43] Login: dev (ID: 108D, Role: developer)
+[2025-06-26 22:57:50] Admin dev revoked mentor 109M from new query 
+[2025-06-26 22:58:26] Login: admin (ID: 110A, Role: admin)
+[2025-06-26 22:58:43] Admin admin assigned mentor 109M to query new query 
