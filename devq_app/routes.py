@@ -26,25 +26,46 @@ def signup():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        role = request.form['role']
+        role = request.form['role'].lower() # Convert to lowercase for consistent suffix lookup
 
-        next_id = (User.query.count() or 0) + 101
-        role_suffix = ROLE_SUFFIX.get(role.lower(), 'X')
-        userid = f"{next_id}{role_suffix}"
-
-        if User.query.filter_by(userid=userid).first():
-            flash("User ID exists. Try again.", "danger")
-            return redirect('/signup')
-
+        # 1. Create User object without userid initially
+        # The 'id' (primary key) will be auto-assigned by the database upon commit
         hashed_password = generate_password_hash(password)
-        user = User(username=username, userid=userid, password=hashed_password, role=role)
+        new_user = User(username=username, password=hashed_password, role=role)
 
-        db.session.add(user)
-        db.session.commit()
+        try:
+            db.session.add(new_user)
+            db.session.commit() # Commit to get the auto-assigned 'id'
 
-        log_event(f"Sign-Up: {user.username} (ID: {user.userid}, Role: {user.role})")
-        flash(f"Registered! Your ID is {userid}", "success")
-        return redirect('/login')
+            # 2. Now generate the custom userid using the database-assigned id
+            # Add a base number (e.g., 1000) to ensure larger, distinct user IDs
+            # from the small primary key 'id' if that's desired for readability.
+            # If you want it to be 101-based, you can add 100 to the user.id
+            # and format. For simplicity, I'll just use user.id directly + suffix.
+            role_suffix = ROLE_SUFFIX.get(role, 'X')
+            
+            # The 'id' column is the integer primary key, it will be unique and auto-incremented
+            # Use it directly to form the unique userid string
+            new_user.userid = f"{new_user.id}{role_suffix}"
+
+            # 3. Update the userid and commit again
+            db.session.add(new_user) # Add it back to session for update, though it's already tracked
+            db.session.commit()
+
+            flash(f"Account created successfully! Your User ID is: {new_user.userid}", "success")
+            log_event(f"New user signed up: {new_user.username} ({new_user.userid}) as {new_user.role}")
+            return redirect('/login')
+
+        except Exception as e:
+            db.session.rollback() # Rollback in case of any error
+            # Check for unique constraint violation specifically on 'userid'
+            # (though with this method, it should be highly unlikely as new_user.id is unique)
+            if "duplicate key value violates unique constraint" in str(e) and "userid" in str(e):
+                flash("A user with a similar ID already exists. Please try again.", "danger")
+            else:
+                flash(f"An error occurred during signup: {e}. Please try again.", "danger")
+            log_event(f"Signup error for username {username}: {e}")
+            return redirect('/signup')
 
     return render_template('signup.html')
 
