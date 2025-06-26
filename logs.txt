@@ -32,3 +32,56 @@
 [2025-06-26 22:57:50] Admin dev revoked mentor 109M from new query 
 [2025-06-26 22:58:26] Login: admin (ID: 110A, Role: admin)
 [2025-06-26 22:58:43] Admin admin assigned mentor 109M to query new query 
+[2025-06-26 23:13:16] Login: dev (ID: 108D, Role: developer)
+[2025-06-26 23:13:29] Login: mentor (ID: 109M, Role: mentor)
+[2025-06-26 23:13:58] Login: admin (ID: 110A, Role: admin)
+[2025-06-26 23:14:19] Query Deleted by dev (108D): new query 
+[2025-06-26 23:16:22] Query Submitted by dev (108D): test - by dev for notifaction
+[2025-06-26 23:18:58] Logout: admin (admin, ID: 110A)
+[2025-06-26 23:19:09] Login: admin (ID: 110A, Role: admin)
+[2025-06-26 23:19:18] Logout: mentor (mentor, ID: 109M)
+[2025-06-26 23:19:26] Login: mentor (ID: 109M, Role: mentor)
+[2025-06-26 23:19:36] Query Submitted by dev (108D): test - by dev for notifaction
+[2025-06-26 23:20:04] Query Submitted by dev (108D): test - by dev for notifaction
+[2025-06-26 23:20:10] Mentor mentor (109M) updated status from Open to In Progress for: test
+[2025-06-26 23:20:16] Admin admin assigned mentor 109M to query test
+[2025-06-26 23:20:32] Mentor mentor (109M) updated status from In Progress to In Progress for: test
+[2025-06-26 23:20:58] Login: admin (ID: 110A, Role: admin)
+[2025-06-26 23:21:05] Login: dev (ID: 108D, Role: developer)
+[2025-06-26 23:21:17] Login: mentor (ID: 109M, Role: mentor)
+[2025-06-26 23:21:43] Query Deleted by dev (108D): test
+[2025-06-26 23:22:08] Query Deleted by dev (108D): test
+[2025-06-26 23:22:17] Query Edited by dev (108D): test
+[2025-06-26 23:28:02] Login: admin (ID: 110A, Role: admin)
+[2025-06-26 23:28:06] Admin admin assigned mentor 109M to query test
+[2025-06-26 23:31:05] Login: admin (ID: 110A, Role: admin)
+[2025-06-26 23:31:09] Admin admin revoked mentor 109M from test
+[2025-06-26 23:31:31] Login: dev (ID: 108D, Role: developer)
+[2025-06-26 23:31:57] Login: mentor (ID: 109M, Role: mentor)
+[2025-06-26 23:32:40] Query Submitted by dev (108D): new query  - checking for auto-update
+[2025-06-26 23:33:59] Query Edited by dev (108D): test
+[2025-06-26 23:34:09] Query Deleted by dev (108D): test
+[2025-06-26 23:34:26] Mentor mentor (109M) updated status from Open to In Progress for: new query 
+[2025-06-26 23:34:43] Admin admin assigned mentor 109M to query new query 
+[2025-06-26 23:34:53] Admin admin revoked mentor 109M from new query 
+[2025-06-26 23:34:57] Query Accepted by Mentor mentor (109M): new query 
+[2025-06-26 23:35:08] Mentor mentor (109M) updated status from In Progress to Pending for: new query 
+[2025-06-26 23:35:29] Mentor mentor (109M) resolved query new query  with solution update.
+[2025-06-26 23:37:24] Query Accepted by Mentor mentor (109M): logging 
+[2025-06-26 23:50:43] Sign-Up: dev (ID: 101D, Role: developer)
+[2025-06-26 23:50:55] Login: dev (ID: 101D, Role: developer)
+[2025-06-26 23:54:27] Sign-Up: mentor (ID: 102M, Role: mentor)
+[2025-06-26 23:54:34] Login: mentor (ID: 102M, Role: mentor)
+[2025-06-26 23:57:25] Sign-Up: admin (ID: 103A, Role: admin)
+[2025-06-26 23:57:38] Login: admin (ID: 103A, Role: admin)
+[2025-06-26 23:57:56] Query Submitted by dev (101D): first query - by developer 1
+[2025-06-26 23:58:10] Query Accepted by Mentor mentor (102M): first query
+[2025-06-26 23:58:31] Mentor mentor (102M) resolved query first query with solution update.
+[2025-06-26 23:58:43] Mentor mentor (102M) updated status from Resolved to Resolved for: first query
+[2025-06-26 23:58:46] Mentor mentor (102M) resolved query first query with solution update.
+[2025-06-26 23:58:53] Mentor mentor (102M) resolved query first query with solution update.
+[2025-06-26 23:59:10] Mentor mentor (102M) revoked query: first query
+[2025-06-26 23:59:24] Query Accepted by Mentor mentor (102M): first query
+[2025-06-26 23:59:54] Query Deleted by dev (101D): first query
+[2025-06-27 00:00:11] Query Submitted by dev (101D): query 2 - new by dev
+[2025-06-27 00:00:19] Admin admin assigned mentor 102M to query query 2

@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, flash, session
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.orm import aliased
-from devq_app import db, socketio
+from devq_app import db, socketio # socketio is imported globally
 from devq_app.models import User, Query
 from devq_app.logger import log_event
 
@@ -12,6 +12,7 @@ ROLE_SUFFIX = {
     'mentor': 'M',
     'admin': 'A'
 }
+
 @routes.route('/healthz')
 def health_check():
     return "OK", 200
@@ -107,12 +108,18 @@ def developer():
         db.session.commit()
 
         log_event(f"Query Submitted by {session['username']} ({session['userid']}): {title} - {description}")
-        socketio.emit('new_query', {
+        
+        # --- MODIFIED: Emitting a 'query_updated' event for new query ---
+        socketio.emit('query_updated', {
+            'query_id': new_query.id,
+            'action': 'new',
             'title': title,
             'description': description,
             'submitted_by': submitted_by,
-            'username': session['username']
-        })
+            'developer_name': session['username'], # Pass developer's username
+            'status': new_query.status # Pass initial status
+        }, namespace='/')
+        # --- END MODIFIED ---
 
         flash("Query submitted!", "success")
         return redirect('/developer')
@@ -135,20 +142,28 @@ def edit_query(qid):
     if session.get('userid') != query.submitted_by:
         flash("Unauthorized.", "danger")
         return redirect('/developer')
+    
+    # Developers can only edit 'Open' or 'Pending' queries
+    if query.status not in ['Open', 'Pending']:
+        flash("Cannot edit a query that is in progress or resolved.", "danger")
+        return redirect('/developer')
+
     if request.method == 'POST':
         query.title = request.form['title']
         query.description = request.form['description']
         db.session.commit()
         log_event(f"Query Edited by {session['username']} ({session['userid']}): {query.title}")
 
-        socketio.emit('query_edited', {
-            'qid': query.id,
+        # --- MODIFIED: Emitting a 'query_updated' event for edited query ---
+        socketio.emit('query_updated', {
+            'query_id': query.id,
+            'action': 'edited',
             'title': query.title,
             'description': query.description,
             'submitted_by': query.submitted_by,
             'edited_by': session['username']
-        })
-
+        }, namespace='/')
+        # --- END MODIFIED ---
 
         flash("Query updated.", "success")
         return redirect('/developer')
@@ -158,15 +173,19 @@ def edit_query(qid):
 def delete_query(qid):
     q = Query.query.get_or_404(qid)
     if session['userid'] == q.submitted_by and q.status != 'Resolved':
+        log_event(f"Query Deleted by {session['username']} ({session['userid']}): {q.title}")
         db.session.delete(q)
         db.session.commit()
-        log_event(f"Query Deleted by {session['username']} ({session['userid']}): {q.title}")
-        socketio.emit('query_deleted', {
-            'qid': q.id,
+        
+        # --- MODIFIED: Emitting a 'query_updated' event for deleted query ---
+        socketio.emit('query_updated', {
+            'query_id': q.id,
+            'action': 'deleted',
             'title': q.title,
             'submitted_by': q.submitted_by,
             'deleted_by': session['username']
-        })
+        }, namespace='/')
+        # --- END MODIFIED ---
 
         flash("Query deleted.", "success")
     else:
@@ -181,13 +200,21 @@ def mentor():
         flash("Mentor access only.", "danger")
         return redirect('/login')
 
-    queries = Query.query.filter(
-        (Query.assigned_to == None) | (Query.assigned_to == session['userid'])
-    ).all()
-    for q in queries:
-        dev = User.query.filter_by(userid=q.submitted_by).first()
-        q.dev_name = dev.username
-    return render_template('mentor.html', queries=queries)
+    # Fetch queries submitted by any developer, and those assigned to current mentor
+    # Also include the developer's username for display
+    Developer = aliased(User)
+    queries = db.session.query(Query, Developer.username.label('developer_name')) \
+        .join(Developer, Query.submitted_by == Developer.userid) \
+        .filter(
+            (Query.assigned_to == None) | (Query.assigned_to == session['userid'])
+        ).all()
+    
+    enriched_queries = []
+    for q, dev_name in queries:
+        q.developer_name = dev_name
+        enriched_queries.append(q)
+
+    return render_template('mentor.html', queries=enriched_queries)
 
 @routes.route('/mentor/accept/<int:query_id>', methods=['POST'])
 def accept_query(query_id):
@@ -198,13 +225,16 @@ def accept_query(query_id):
         db.session.commit()
         log_event(f"Query Accepted by Mentor {session['username']} ({session['userid']}): {query.title}")
         
-        socketio.emit('query_assigned', {
+        # --- MODIFIED: Emitting a 'query_updated' event for accepted query ---
+        socketio.emit('query_updated', {
             'query_id': query.id,
+            'action': 'accepted',
             'title': query.title,
             'assigned_to': session['userid'],
             'mentor_name': session['username'],
             'status': 'In Progress'
-        })
+        }, namespace='/')
+        # --- END MODIFIED ---
 
         flash("Accepted.", "success")
     else:
@@ -220,12 +250,15 @@ def revoke_query(qid):
         db.session.commit()
         log_event(f"Mentor {session['username']} ({session['userid']}) revoked query: {q.title}")
         
-        socketio.emit('query_revoked', {
+        # --- MODIFIED: Emitting a 'query_updated' event for revoked query ---
+        socketio.emit('query_updated', {
             'query_id': q.id,
+            'action': 'revoked',
             'title': q.title,
             'revoked_by': session['username'],
             'status': 'Pending'
-        })
+        }, namespace='/')
+        # --- END MODIFIED ---
 
         flash("Revoked.", "info")
     else:
@@ -235,8 +268,9 @@ def revoke_query(qid):
 @routes.route('/mentor/update_status/<int:query_id>', methods=['POST'])
 def update_status(query_id):
     query = Query.query.get_or_404(query_id)
-    if query.assigned_to != session['userid']:
-        flash("Unauthorized.", "danger")
+    # Mentors can only update status of queries assigned to them, or "Open" queries if they're about to accept
+    if query.assigned_to != session['userid'] and query.status != 'Open':
+        flash("Unauthorized. You can only update status for queries assigned to you.", "danger")
         return redirect('/mentor')
 
     new_status = request.form.get('status')
@@ -244,7 +278,18 @@ def update_status(query_id):
     query.status = new_status
     db.session.commit()
     log_event(f"Mentor {session['username']} ({session['userid']}) updated status from {old_status} to {new_status} for: {query.title}")
-    socketio.emit('status_update', {'title': query.title, 'status': new_status})
+    
+    # --- MODIFIED: Emitting a 'query_updated' event for status change ---
+    socketio.emit('query_updated', {
+        'query_id': query.id,
+        'action': 'status_change',
+        'title': query.title,
+        'old_status': old_status,
+        'new_status': new_status,
+        'updated_by_mentor': session['username']
+    }, namespace='/')
+    # --- END MODIFIED ---
+
     flash("Status updated.", "success")
     return redirect('/mentor')
 
@@ -259,15 +304,17 @@ def solve_query(qid):
     db.session.commit()
     log_event(f"Mentor {session['username']} ({session['userid']}) resolved query {q.title} with solution update.")
     
-    
-    socketio.emit('solution_submitted', {
+    # --- MODIFIED: Emitting a 'query_updated' event for solution submission ---
+    socketio.emit('query_updated', {
         'query_id': q.id,
+        'action': 'resolved',
         'title': q.title,
         'mentor_id': session['userid'],
         'mentor_name': session['username'],
         'status': 'Resolved',
         'solution_text': q.solution
-    })
+    }, namespace='/')
+    # --- END MODIFIED ---
 
     flash("Solution submitted.", "success")
     return redirect('/mentor')
@@ -294,15 +341,25 @@ def admin():
         queries.append(q)
 
     all_mentors = User.query.filter_by(role='mentor').all()
-    assigned_ids = [q.assigned_to for q in Query.query.filter(Query.assigned_to.isnot(None)).all()]
-    free_mentors = [m for m in all_mentors if m.userid not in assigned_ids]
+    # Find currently assigned mentor IDs from queries
+    assigned_mentor_userids = [q.assigned_to for q in Query.query.filter(Query.assigned_to.isnot(None)).all()]
+    # Filter out mentors who are already assigned to a query from the "free_mentors" list
+    # This logic may need refinement depending on if a mentor can be assigned to multiple queries
+    # For now, assuming a mentor can only be assigned to one query at a time for "free" status
+    free_mentors = [m for m in all_mentors if m.userid not in assigned_mentor_userids]
 
     return render_template('admin.html', queries=queries, mentors=free_mentors)
 
+
 @routes.route('/admin/assign/<int:query_id>', methods=['POST'])
-def assign_mentor(query_id):
+def admin_assign_mentor(query_id): # Renamed to avoid conflict with scheduler's assign_mentor
     mentor_id = request.form['mentor_id']
     query = Query.query.get_or_404(query_id)
+    
+    # Fetch mentor's username for the event payload
+    assigned_mentor_user = User.query.filter_by(userid=mentor_id).first()
+    mentor_username = assigned_mentor_user.username if assigned_mentor_user else None
+
     if query.assigned_to:
         flash("Already assigned.", "warning")
     else:
@@ -311,36 +368,49 @@ def assign_mentor(query_id):
         db.session.commit()
         log_event(f"Admin {session['username']} assigned mentor {mentor_id} to query {query.title}")
         
-        socketio.emit('query_assigned_admin', {
-                'query_id': query.id,
-                'title': query.title,
-                'assigned_to': mentor_id,
-                'mentor_id': mentor_id,
-                'admin_name': session['username'],
-                'status': 'In Progress'
-        })
+        # --- MODIFIED: Emitting a 'query_updated' event for admin assignment ---
+        socketio.emit('query_updated', {
+            'query_id': query.id,
+            'action': 'assigned_by_admin',
+            'title': query.title,
+            'assigned_to': mentor_id,
+            'mentor_name': mentor_username, # Pass mentor's username
+            'admin_name': session['username'],
+            'status': 'In Progress'
+        }, namespace='/')
+        # --- END MODIFIED ---
 
         flash("Mentor assigned.", "success")
     return redirect('/admin')
 
 @routes.route('/admin/revoke/<int:query_id>', methods=['POST'])
-def revoke_mentor(query_id):
+def admin_revoke_mentor(query_id): # Renamed to avoid conflict
     query = Query.query.get_or_404(query_id)
     if not query.assigned_to:
         flash("No mentor assigned.", "info")
     else:
         log_event(f"Admin {session['username']} revoked mentor {query.assigned_to} from {query.title}")
+        
+        # Store revoked mentor's ID before nullifying
+        revoked_mentor_id = query.assigned_to 
+        revoked_mentor_user = User.query.filter_by(userid=revoked_mentor_id).first()
+        revoked_mentor_name = revoked_mentor_user.username if revoked_mentor_user else None
+
         query.assigned_to = None
         query.status = 'Pending'
         db.session.commit()
         
-        socketio.emit('query_revoked_admin', {
-                'query_id': query.id,
-                'title': query.title,
-                'revoked_by': session['username'],
-                'admin_name': session['username'],
-                'status': 'Pending'
-        })
+        # --- MODIFIED: Emitting a 'query_updated' event for admin revocation ---
+        socketio.emit('query_updated', {
+            'query_id': query.id,
+            'action': 'revoked_by_admin',
+            'title': query.title,
+            'revoked_mentor_id': revoked_mentor_id,
+            'revoked_mentor_name': revoked_mentor_name,
+            'admin_name': session['username'],
+            'status': 'Pending'
+        }, namespace='/')
+        # --- END MODIFIED ---
 
         flash("Revoked.", "success")
     return redirect('/admin')
@@ -372,6 +442,11 @@ def update_profile():
                 user.password = generate_password_hash(new_password)
 
             db.session.commit()
+            log_event(f"Profile Updated: {user.username} (ID: {user.userid}, Role: {user.role})")
+            # Update session username if it changed
+            if session['username'] != new_username:
+                session['username'] = new_username
+            
             flash("Profile updated successfully.", "success")
             return redirect(f"/{user.role.lower()}")
     except Exception as e:
