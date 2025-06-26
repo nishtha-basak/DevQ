@@ -406,3 +406,67 @@
 [2025-06-27 03:49:49] Scheduler: Attempting automated query assignment...
 [2025-06-27 03:49:49] Scheduler: No new 'Open' queries to process for automatic assignment.
 [2025-06-27 03:49:49] APScheduler: No queries were assigned in this run.
+[2025-06-27 04:07:50] APScheduler started and scheduled automated query assignment job.
+[2025-06-27 04:08:11] APScheduler started and scheduled automated query assignment job.
+[2025-06-27 04:08:13] APScheduler started and scheduled automated query assignment job.
+[2025-06-27 04:08:38] Login: DevUser1 (ID: 1D, Role: developer)
+[2025-06-27 04:08:49] Profile Updated: DevUser1 (ID: 1D, Role: developer)
+[2025-06-27 04:09:13] Query submitted by DevUser1 (1D): 'issue 1' with tags: DevOps
+[2025-06-27 04:11:23] Logout: DevUser1 (developer, ID: 1D)
+[2025-06-27 04:11:33] Login: AdminUser1 (ID: 11A, Role: admin)
+[2025-06-27 04:11:46] Admin AdminUser1 assigned mentor 6M to query issue 1
+[2025-06-27 04:12:03] Admin AdminUser1 revoked mentor 6M from query issue 1
+[2025-06-27 04:12:28] Admin AdminUser1 assigned mentor 8M to query issue 1
+[2025-06-27 04:12:39] Logout: AdminUser1 (admin, ID: 11A)
+[2025-06-27 04:13:11] APScheduler: Running automated query assignment job...
+[2025-06-27 04:13:11] Scheduler: Attempting automated query assignment (bulk run)...
+[2025-06-27 04:13:11] Scheduler: No new 'Open' queries to process (bulk).
+[2025-06-27 04:13:11] APScheduler: No queries were assigned in this run.
+[2025-06-27 04:13:12] Login: MentorUser3 (ID: 8M, Role: mentor)
+[2025-06-27 04:13:13] APScheduler: Running automated query assignment job...
+[2025-06-27 04:13:13] Scheduler: Attempting automated query assignment (bulk run)...
+[2025-06-27 04:13:13] Scheduler: No new 'Open' queries to process (bulk).
+[2025-06-27 04:13:13] APScheduler: No queries were assigned in this run.
+[2025-06-27 04:13:33] Mentor MentorUser3 (8M) updated status from In Progress to Open for: issue 1
+[2025-06-27 04:13:38] Mentor MentorUser3 (8M) updated status from Open to In Progress for: issue 1
+[2025-06-27 04:13:43] Mentor MentorUser3 (8M) updated status from In Progress to Resolved for: issue 1
+[2025-06-27 04:13:51] Mentor MentorUser3 (8M) resolved query issue 1 with solution update.
+[2025-06-27 04:13:55] Mentor MentorUser3 (8M) revoked query: issue 1. Now attempting re-assignment.
+[2025-06-27 04:13:55] Scheduler Helper: Attempting to find new mentor for Query ID 1, excluding 8M.
+[2025-06-27 04:13:55] Scheduler Helper: Successfully reassigned Query ID 1 to new Mentor 7M.
+[2025-06-27 04:13:55] Query 1 reassigned to MentorUser2 after MentorUser3 revoked.
+[2025-06-27 04:14:10] Logout: MentorUser3 (mentor, ID: 8M)
+[2025-06-27 04:14:19] Login: DevUser1 (ID: 1D, Role: developer)
+[2025-06-27 04:14:35] Query Edited by DevUser1 (1D): issue 1. Assigned: True
+[2025-06-27 04:15:01] Logout: DevUser1 (developer, ID: 1D)
+[2025-06-27 04:16:17] APScheduler started and scheduled automated query assignment job.
+[2025-06-27 04:16:19] APScheduler started and scheduled automated query assignment job.
+[2025-06-27 04:16:31] Login: DevUser1 (ID: 1D, Role: developer)
+[2025-06-27 04:16:59] Query submitted by DevUser1 (1D): 'issue 2' with tags: Bug
+[2025-06-27 04:17:27] Query Edited by DevUser1 (1D): issue 2. Assigned: False
+[2025-06-27 04:18:17] APScheduler: Running automated query assignment job...
+[2025-06-27 04:18:17] Scheduler: Attempting automated query assignment (bulk run)...
+[2025-06-27 04:18:17] Scheduler: Assigned Query ID 2 (Tags: Database) to Mentor 7M (bulk).
+[2025-06-27 04:18:17] Scheduler: Successfully committed assignments for queries: [2] (bulk).
+[2025-06-27 04:18:17] APScheduler: Emitting update for automatically assigned Query ID 2 to MentorUser2.
+[2025-06-27 04:18:19] APScheduler: Running automated query assignment job...
+[2025-06-27 04:18:19] Scheduler: Attempting automated query assignment (bulk run)...
+[2025-06-27 04:18:19] Scheduler: No new 'Open' queries to process (bulk).
+[2025-06-27 04:18:19] APScheduler: No queries were assigned in this run.
+[2025-06-27 04:20:17] APScheduler: Running automated query assignment job...
+[2025-06-27 04:20:17] Scheduler: Attempting automated query assignment (bulk run)...
+[2025-06-27 04:20:17] Scheduler: No new 'Open' queries to process (bulk).
+[2025-06-27 04:20:17] APScheduler: No queries were assigned in this run.
+[2025-06-27 04:20:19] APScheduler: Running automated query assignment job...
+[2025-06-27 04:20:19] Scheduler: Attempting automated query assignment (bulk run)...
+[2025-06-27 04:20:19] Scheduler: No new 'Open' queries to process (bulk).
+[2025-06-27 04:20:19] APScheduler: No queries were assigned in this run.
+[2025-06-27 04:21:20] Query Deleted by DevUser1 (1D): issue 2
+[2025-06-27 04:22:17] APScheduler: Running automated query assignment job...
+[2025-06-27 04:22:17] Scheduler: Attempting automated query assignment (bulk run)...
+[2025-06-27 04:22:17] Scheduler: No new 'Open' queries to process (bulk).
+[2025-06-27 04:22:17] APScheduler: No queries were assigned in this run.
+[2025-06-27 04:22:19] APScheduler: Running automated query assignment job...
+[2025-06-27 04:22:19] Scheduler: Attempting automated query assignment (bulk run)...
+[2025-06-27 04:22:19] Scheduler: No new 'Open' queries to process (bulk).
+[2025-06-27 04:22:19] APScheduler: No queries were assigned in this run.

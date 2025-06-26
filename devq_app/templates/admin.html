@@ -13,7 +13,7 @@
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h2>Admin Dashboard - {{ session['username'] }}</h2>
     
-    <!-- NEW: Settings Dropdown -->
+    <!-- Settings Dropdown -->
     <div class="dropdown">
       <button class="btn btn-secondary dropdown-toggle" type="button" id="settingsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
         Settings
@@ -30,7 +30,6 @@
         <li><a class="dropdown-item" href="/logout">Logout</a></li>
       </ul>
     </div>
-    <!-- END NEW -->
   </div>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
@@ -43,10 +42,11 @@
       <tr>
         <th>Title</th>
         <th>Description</th>
-        <th>Tags</th> <!-- Make sure you add this column for tags display -->
+        <th>Tags</th>
         <th>Developer</th>
         <th>Mentor</th>
         <th>Status</th>
+        <th>Solution</th> {# ADDED: Solution column #}
         <th>Action</th>
       </tr>
     </thead>
@@ -55,12 +55,13 @@
       <tr>
         <td>{{ query.title }}</td>
         <td>{{ query.description }}</td>
-        <td>{{ query.tags or 'N/A' }}</td> <!-- Display tags -->
+        <td>{{ query.tags or 'N/A' }}</td>
         <td>{{ query.developer_name }}</td>
         <td>{{ query.mentor_name or 'Unassigned' }}</td>
         <td>
-          <span class="query-status-{{ query.id }}">{{ query.status }}</span> {# Added span with ID for potential future dynamic update #}
+          <span class="query-status-{{ query.id }}">{{ query.status }}</span>
         </td>
+        <td>{{ query.solution or 'N/A' }}</td> {# ADDED: Display solution #}
         <td>
           {% if not query.assigned_to %}
           <form action="/admin/assign/{{ query.id }}" method="POST">
@@ -90,9 +91,9 @@
         console.log('Connected to Socket.IO server!');
     });
 
+    // Re-confirming auto-refresh for DataTables
     socket.on('query_updated', function(data) {
         console.log('Real-time update received:', data);
-        // Using DataTables reload if it's initialized on this table
         if (typeof $.fn.DataTable !== 'undefined' && $.fn.DataTable.isDataTable('#adminTable')) {
             $('#adminTable').DataTable().ajax.reload(null, false); // Reload without resetting pagination
         } else {

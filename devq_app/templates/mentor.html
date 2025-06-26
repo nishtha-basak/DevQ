@@ -13,7 +13,7 @@
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h2>Mentor Dashboard - {{ session['username'] }}</h2>
     
-    <!-- NEW: Settings Dropdown -->
+    <!-- Settings Dropdown -->
     <div class="dropdown">
       <button class="btn btn-secondary dropdown-toggle" type="button" id="settingsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
         Settings
@@ -30,7 +30,6 @@
         <li><a class="dropdown-item" href="/logout">Logout</a></li>
       </ul>
     </div>
-    <!-- END NEW -->
   </div>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
@@ -43,10 +42,10 @@
       <tr>
         <th>Title</th>
         <th>Description</th>
-        <th>Tags</th> <!-- Make sure you add this column for tags display -->
+        <th>Tags</th>
         <th>Developer</th>
         <th>Status</th>
-        <th>Solution</th>
+        <th>Solution</th> {# CONFIRMED: Solution column is here #}
         <th>Action</th>
       </tr>
     </thead>
@@ -55,12 +54,12 @@
       <tr>
         <td>{{ q.title }}</td>
         <td>{{ q.description }}</td>
-        <td>{{ q.tags or 'N/A' }}</td> <!-- Display tags -->
+        <td>{{ q.tags or 'N/A' }}</td>
         <td>{{ q.developer_name }}</td>
         <td>
           <form action="/mentor/update_status/{{ q.id }}" method="POST" class="d-flex">
             <select name="status" class="form-select form-select-sm me-1">
-              {% for st in ['Open','In Progress','Resolved'] %} {# Changed 'Pending' to 'Open' for consistency if auto-assigned queries start as 'Open' #}
+              {% for st in ['Open','In Progress','Resolved'] %}
               <option value="{{st}}" {% if q.status==st %}selected{% endif %}>{{st}}</option>
               {% endfor %}
             </select>
@@ -95,7 +94,6 @@
 
     socket.on('query_updated', function(data) {
         console.log('Real-time update received:', data);
-        // Using DataTables reload if it's initialized on this table
         if (typeof $.fn.DataTable !== 'undefined' && $.fn.DataTable.isDataTable('#queryTable')) {
             $('#queryTable').DataTable().ajax.reload(null, false); // Reload without resetting pagination
         } else {

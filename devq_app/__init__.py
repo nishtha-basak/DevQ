@@ -8,7 +8,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import os
 from dotenv import load_dotenv
 
-# Initialize extensions globally, but NOT the scheduler yet
+# Initialize extensions globally
 socketio = SocketIO(cors_allowed_origins="*")
 db = SQLAlchemy()
 load_dotenv()
@@ -27,6 +27,9 @@ def create_app():
     db.init_app(app)
     Session(app)
 
+    # NEW: Make 'set' available in Jinja2 templates
+    app.jinja_env.globals.update(set=set) # This line adds the 'set' function
+
     from devq_app.routes import routes as routes_blueprint
     app.register_blueprint(routes_blueprint)
 
@@ -35,10 +38,8 @@ def create_app():
 
     socketio.init_app(app)
 
-    # NEW: Create and attach scheduler to the app instance
-    if not hasattr(app, 'scheduler'): # Ensure scheduler is only initialized once per app instance
+    if not hasattr(app, 'scheduler'):
         app.scheduler = BackgroundScheduler()
-        # Import assign_mentor and other necessary components
         from devq_app.scheduler import assign_mentor
         from devq_app.models import Query, User
         from devq_app.logger import log_event
@@ -72,8 +73,7 @@ def create_app():
                 else:
                     log_event("APScheduler: No queries were assigned in this run.")
 
-        # Attach the job to the app's scheduler
-        app.scheduler.add_job(func=scheduled_assignment_job, trigger="interval", seconds=30)
+        app.scheduler.add_job(func=scheduled_assignment_job, trigger="interval", minutes=2) # Changed to minutes=2
         app.scheduler.start()
         log_event("APScheduler started and scheduled automated query assignment job.")
 

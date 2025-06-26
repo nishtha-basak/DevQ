@@ -4,6 +4,8 @@ from sqlalchemy.orm import aliased
 from devq_app import db, socketio # socketio is imported globally
 from devq_app.models import User, Query
 from devq_app.logger import log_event
+# Import the new scheduler helper function
+from devq_app.scheduler import find_and_assign_single_query
 
 routes = Blueprint('routes', __name__)
 
@@ -26,33 +28,25 @@ def signup():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        role = request.form['role'].lower() # Convert to lowercase for consistent suffix lookup
+        role = request.form['role'].lower()
 
-        # 1. Create User object without userid initially (it will be NULL)
-        # The 'id' (primary key) will be auto-assigned by the database upon commit
         hashed_password = generate_password_hash(password)
-        # new_user expertise will be default='', which is fine
         new_user = User(username=username, password=hashed_password, role=role)
 
         try:
             db.session.add(new_user)
-            db.session.commit() # First commit: inserts user, DB assigns 'id', userid is NULL
+            db.session.commit()
 
-            # 2. Now generate the custom userid using the database-assigned unique 'id'
             role_suffix = ROLE_SUFFIX.get(role, 'X')
-            new_user.userid = f"{new_user.id}{role_suffix}" # Generate based on unique DB-assigned ID
-
-            # 3. Update the userid and commit again
-            # db.session.add(new_user) # Already tracked by session, no need to add again
-            db.session.commit() # Second commit: updates userid from NULL to the generated value
+            new_user.userid = f"{new_user.id}{role_suffix}"
+            db.session.commit()
 
             flash(f"Account created successfully! Your User ID is: {new_user.userid}", "success")
             log_event(f"New user signed up: {new_user.username} (ID: {new_user.userid}) as {new_user.role}")
             return redirect('/login')
 
         except Exception as e:
-            db.session.rollback() # Rollback the transaction in case of any database error
-            # This 'except' block will now mainly catch other unexpected DB errors
+            db.session.rollback()
             flash(f"An unexpected error occurred during signup. Please try again. Error: {e}", "danger")
             import traceback
             log_event(f"Signup error for username {username}: {traceback.format_exc()}")
@@ -65,7 +59,7 @@ def login():
     if request.method == 'POST':
         userid = request.form['userid'].strip()
         password = request.form['password']
-        role = request.form['role'].lower() # Ensure role is lowercase for consistency
+        role = request.form['role'].lower()
 
         user = User.query.filter_by(userid=userid).first()
 
@@ -89,8 +83,6 @@ def login():
         log_event(f"Login: {user.username} (ID: {user.userid}, Role: {user.role})")
         flash(f"Welcome {user.username}!", "success")
 
-        # NEW LOGIC: If mentor and expertise is not set, redirect to setup page
-        # user.expertise is a string; empty string evaluates to False
         if user.role == 'mentor' and not user.expertise:
             flash("Please set your expertise to continue.", "info")
             return redirect('/mentor_setup_expertise')
@@ -118,48 +110,45 @@ def developer():
         return redirect('/login')
 
     developer_id = session['userid']
-    developer = User.query.filter_by(userid=developer_id).first() # Fetch developer object to get username for socketio emit
+    developer = User.query.filter_by(userid=developer_id).first()
 
     if request.method == 'POST':
         title = request.form['title']
         description = request.form['description']
-        # NEW: Get selected tags from the form (multi-select)
-        selected_tags = request.form.getlist('tags') # getlist for multiple selected options
-        tags_string = ','.join(selected_tags) # Join into a comma-separated string
+        
+        # Tags from the hidden input for the custom dropdown
+        tags_raw_input = request.form.get('tags', '') # Get the single string
+        final_tags_string = tags_raw_input # This is already comma-separated
 
         new_query = Query(
             title=title,
             description=description,
-            tags=tags_string, # Save the tags string
+            tags=final_tags_string,
             submitted_by=developer_id,
-            status='Open' # Initial status for new queries from developers
+            status='Open'
         )
         db.session.add(new_query)
         db.session.commit()
         flash("Query submitted successfully!", "success")
-        log_event(f"Query submitted by {developer.username} ({developer.userid}): '{title}' with tags: {tags_string}")
+        log_event(f"Query submitted by {developer.username} ({developer.userid}): '{title}' with tags: {final_tags_string}")
 
-        # Emit SocketIO event for real-time update
-        # Include all relevant data for dashboards to update
         socketio.emit('query_updated', {
             'query_id': new_query.id,
-            'action': 'new_query', # More specific action for frontend
+            'action': 'new_query',
             'title': new_query.title,
             'description': new_query.description,
             'tags': new_query.tags,
             'status': new_query.status,
             'submitted_by_id': new_query.submitted_by,
-            'developer_name': developer.username # Pass developer's username
+            'developer_name': developer.username
         }, namespace='/')
 
         return redirect('/developer')
 
-    # For GET request, fetch queries
     queries = db.session.query(Query, User.username.label('mentor_name')) \
         .outerjoin(User, Query.assigned_to == User.userid) \
-        .filter(Query.submitted_by == developer_id).order_by(Query.id.desc()).all() # Ordered for better display
+        .filter(Query.submitted_by == developer_id).order_by(Query.id.desc()).all()
 
-    # Enrich queries with mentor_name (already done by outerjoin label, but loop ensures attribute existence)
     enriched_queries = []
     for q_obj, mentor_name in queries:
         q_obj.mentor_name = mentor_name
@@ -175,104 +164,107 @@ def edit_query(qid):
         flash("Unauthorized.", "danger")
         return redirect('/developer')
     
-    # Developers can only edit 'Open' or 'Pending' queries
-    if query.status not in ['Open', 'Pending']:
-        flash("Cannot edit a query that is in progress or resolved.", "danger")
-        return redirect('/developer')
+    is_assigned = query.assigned_to is not None and query.assigned_to != ''
 
     if request.method == 'POST':
         query.title = request.form['title']
         query.description = request.form['description']
-        # No tags editing for simplicity here, but you could add it similarly to submission
-        db.session.commit()
-        log_event(f"Query Edited by {session['username']} ({session['userid']}): {query.title}")
+        
+        if not is_assigned: # Only update tags if not assigned
+            tags_raw_input = request.form.get('tags', '')
+            query.tags = tags_raw_input
+        else:
+            # If assigned, and developer attempts to send tag data (though UI prevents it)
+            # we ignore tag changes as per requirement.
+            pass 
 
-        # Emit SocketIO event for real-time update
+        db.session.commit()
+        log_event(f"Query Edited by {session['username']} ({session['userid']}): {query.title}. Assigned: {is_assigned}")
+
         socketio.emit('query_updated', {
             'query_id': query.id,
-            'action': 'edited_query', # More specific action
+            'action': 'edited_query',
             'title': query.title,
             'description': query.description,
-            'tags': query.tags, # Pass existing tags
+            'tags': query.tags,
             'status': query.status,
             'submitted_by_id': query.submitted_by,
-            'edited_by_username': session['username']
+            'edited_by_username': session['username'],
+            'assigned_to_id': query.assigned_to
         }, namespace='/')
 
         flash("Query updated.", "success")
         return redirect('/developer')
-    return render_template('edit_query.html', query=query)
+    
+    return render_template('edit_query.html', query=query, is_assigned=is_assigned)
 
 @routes.route('/developer/delete/<int:qid>', methods=['POST'])
 def delete_query(qid):
     q = Query.query.get_or_404(qid)
-    if session['userid'] == q.submitted_by and q.status != 'Resolved':
-        log_event(f"Query Deleted by {session['username']} ({session['userid']}): {q.title}")
-        db.session.delete(q)
-        db.session.commit()
-        
-        # Emit SocketIO event for real-time update
-        socketio.emit('query_updated', {
-            'query_id': q.id,
-            'action': 'deleted_query', # More specific action
-            'title': q.title,
-            'submitted_by_id': q.submitted_by,
-            'deleted_by_username': session['username']
-        }, namespace='/')
+    if session['userid'] != q.submitted_by:
+        flash("Unauthorized. You can only delete queries you have submitted.", "danger")
+        return redirect('/developer')
 
-        flash("Query deleted.", "success")
-    else:
-        flash("Not allowed to delete resolved queries or queries not submitted by you.", "danger")
+    # Allow deletion regardless of assignment/status
+    log_event(f"Query Deleted by {session['username']} ({session['userid']}): {q.title}")
+    db.session.delete(q)
+    db.session.commit()
+    
+    socketio.emit('query_updated', {
+        'query_id': q.id,
+        'action': 'deleted_query',
+        'title': q.title,
+        'submitted_by_id': q.submitted_by,
+        'deleted_by_username': session['username']
+    }, namespace='/')
+
+    flash("Query deleted successfully.", "success")
     return redirect('/developer')
 
 # ---------------- Mentor ----------------
 
-# NEW: Mentor Expertise Setup Route
 @routes.route('/mentor_setup_expertise', methods=['GET', 'POST'])
 def mentor_setup_expertise():
-    # Ensure only logged-in mentors who haven't set expertise can access this
     if 'userid' not in session or session['role'] != 'mentor':
         flash("Access denied. Please log in as a mentor.", "danger")
         return redirect('/login')
 
     user = User.query.filter_by(userid=session['userid']).first()
 
-    # If expertise is already set, redirect to dashboard
-    if user and user.expertise and user.expertise != '': # Check if expertise is empty string or None
+    if user and user.expertise and user.expertise != '':
         flash("Your expertise is already set. Redirecting to dashboard.", "info")
         return redirect('/mentor')
 
     if request.method == 'POST':
-        selected_expertise = request.form.getlist('expertise')
-        if not selected_expertise:
+        # Expertise from the hidden input for the custom dropdown
+        expertise_raw_input = request.form.get('expertise', '')
+        final_expertise_string = expertise_raw_input # This is already comma-separated
+
+        if not final_expertise_string:
             flash("Please select at least one area of expertise.", "warning")
             return redirect('/mentor_setup_expertise')
 
-        user.expertise = ','.join(selected_expertise)
+        user.expertise = final_expertise_string
         db.session.commit()
         log_event(f"Mentor {user.username} ({user.userid}) set expertise: {user.expertise}")
         flash("Your expertise has been saved!", "success")
         return redirect('/mentor')
 
-    return render_template('mentor_setup_expertise.html', user=user) # Pass user object if needed for template
+    return render_template('mentor_expertise_setup.html', user=user)
 
 @routes.route('/mentor')
-def mentor_dashboard(): # Renamed to avoid conflict with potential function 'mentor' in app
+def mentor_dashboard():
     if session.get('role') != 'mentor':
         flash("Mentor access only.", "danger")
         return redirect('/login')
 
-    # Fetch queries submitted by any developer, and those assigned to current mentor
-    # Also include the developer's username for display
-    # We also need query tags for the mentor dashboard
     Developer = aliased(User)
     queries = db.session.query(Query, Developer.username.label('developer_name')) \
         .join(Developer, Query.submitted_by == Developer.userid) \
         .filter(
             (Query.assigned_to == None) | (Query.assigned_to == session['userid'])
-        ).order_by(Query.id.desc()).all() # Order by ID for consistency
+        ).order_by(Query.id.desc()).all()
 
-    # Enrich queries with developer_name
     enriched_queries = []
     for q, dev_name in queries:
         q.developer_name = dev_name
@@ -289,15 +281,14 @@ def accept_query(query_id):
         db.session.commit()
         log_event(f"Query Accepted by Mentor {session['username']} ({session['userid']}): {query.title}")
         
-        # Emit SocketIO event for real-time update
         socketio.emit('query_updated', {
             'query_id': query.id,
-            'action': 'accepted_by_mentor', # More specific action
+            'action': 'accepted_by_mentor',
             'title': query.title,
             'assigned_to': session['userid'],
             'mentor_name': session['username'],
             'status': 'In Progress',
-            'tags': query.tags, # Include tags
+            'tags': query.tags,
             'developer_name': User.query.filter_by(userid=query.submitted_by).first().username if query.submitted_by else 'Unknown'
         }, namespace='/')
 
@@ -309,36 +300,69 @@ def accept_query(query_id):
 @routes.route('/mentor/revoke/<int:qid>', methods=['POST'])
 def revoke_query(qid):
     q = Query.query.get_or_404(qid)
-    if q.assigned_to == session['userid']:
-        # Store revoked mentor's info before unassigning
-        revoked_mentor_username = session['username'] # Or fetch from DB if needed for other dashboards
+    current_mentor_id = session['userid']
+    current_mentor_username = session['username']
 
-        q.assigned_to = None
-        q.status = 'Open' # Changed from 'Pending' to 'Open' as it's now available again
-        db.session.commit()
-        log_event(f"Mentor {session['username']} ({session['userid']}) revoked query: {q.title}")
+    if q.assigned_to != current_mentor_id:
+        flash("Unauthorized to revoke this query.", "danger")
+        return redirect('/mentor')
+
+    # Revoke initially
+    q.assigned_to = None
+    q.status = 'Open' # Query becomes 'Open' again for re-assignment
+    db.session.commit()
+    log_event(f"Mentor {current_mentor_username} ({current_mentor_id}) revoked query: {q.title}. Now attempting re-assignment.")
+
+    # Attempt to re-assign immediately to another eligible mentor
+    # The scheduler function finds AND assigns, committing changes internally.
+    reassigned_mentor_id = find_and_assign_single_query(q.id, exclude_mentor_id=current_mentor_id)
+
+    if reassigned_mentor_id:
+        # If successfully reassigned to another mentor (done within find_and_assign_single_query)
+        # Re-fetch query to get its updated state for socket emit
+        db.session.refresh(q) 
+        new_mentor_user = User.query.filter_by(userid=reassigned_mentor_id).first()
+        new_mentor_name = new_mentor_user.username if new_mentor_user else 'Unknown Mentor'
         
-        # Emit SocketIO event for real-time update
+        flash(f"Query assignment revoked. Successfully reassigned to {new_mentor_name}.", "info")
+        log_event(f"Query {q.id} reassigned to {new_mentor_name} after {current_mentor_username} revoked.")
+
         socketio.emit('query_updated', {
             'query_id': q.id,
-            'action': 'revoked_by_mentor', # More specific action
+            'action': 'reassigned_after_revocation',
             'title': q.title,
-            'revoked_mentor_id': session['userid'],
-            'revoked_mentor_name': revoked_mentor_username,
-            'status': 'Open', # New status
-            'tags': q.tags, # Include tags
+            'assigned_to': q.assigned_to,
+            'mentor_name': new_mentor_name,
+            'status': q.status,
+            'tags': q.tags,
             'developer_name': User.query.filter_by(userid=q.submitted_by).first().username if q.submitted_by else 'Unknown'
         }, namespace='/')
-
-        flash("Query assignment revoked.", "info")
     else:
-        flash("Unauthorized to revoke this query.", "danger")
+        # If no other eligible mentor found, re-assign back to the original mentor
+        q.assigned_to = current_mentor_id
+        q.status = 'In Progress' # Put it back in progress for the original mentor
+        db.session.commit() # Commit this re-assignment back to original mentor
+        flash("No other eligible mentor could be assigned. Query reassigned back to you.", "warning")
+        log_event(f"Query {q.id} reassigned BACK to {current_mentor_username} as no other eligible mentor found.")
+
+        # Re-fetch query to get its updated state for socket emit
+        db.session.refresh(q)
+        socketio.emit('query_updated', {
+            'query_id': q.id,
+            'action': 'reassigned_back_to_original_mentor',
+            'title': q.title,
+            'assigned_to': q.assigned_to,
+            'mentor_name': current_mentor_username,
+            'status': q.status,
+            'tags': q.tags,
+            'developer_name': User.query.filter_by(userid=q.submitted_by).first().username if q.submitted_by else 'Unknown'
+        }, namespace='/')
+        
     return redirect('/mentor')
 
 @routes.route('/mentor/update_status/<int:query_id>', methods=['POST'])
 def update_status(query_id):
     query = Query.query.get_or_404(query_id)
-    # Mentors can only update status of queries assigned to them
     if query.assigned_to != session['userid']:
         flash("Unauthorized. You can only update status for queries assigned to you.", "danger")
         return redirect('/mentor')
@@ -349,17 +373,16 @@ def update_status(query_id):
     db.session.commit()
     log_event(f"Mentor {session['username']} ({session['userid']}) updated status from {old_status} to {new_status} for: {query.title}")
     
-    # Emit SocketIO event for real-time update
     socketio.emit('query_updated', {
         'query_id': query.id,
-        'action': 'status_updated_by_mentor', # More specific action
+        'action': 'status_updated_by_mentor',
         'title': query.title,
         'old_status': old_status,
         'new_status': new_status,
         'updated_by_mentor_username': session['username'],
-        'tags': query.tags, # Include tags
+        'tags': query.tags,
         'developer_name': User.query.filter_by(userid=query.submitted_by).first().username if query.submitted_by else 'Unknown',
-        'assigned_to': query.assigned_to # Include current assignee
+        'assigned_to': query.assigned_to
     }, namespace='/')
 
     flash("Status updated.", "success")
@@ -372,20 +395,19 @@ def solve_query(qid):
         flash("Unauthorized.", "danger")
         return redirect('/mentor')
     q.solution = request.form['solution']
-    q.status = 'Resolved' # Always set to Resolved when solution is submitted
+    q.status = 'Resolved'
     db.session.commit()
     log_event(f"Mentor {session['username']} ({session['userid']}) resolved query {q.title} with solution update.")
     
-    # Emit SocketIO event for real-time update
     socketio.emit('query_updated', {
         'query_id': q.id,
-        'action': 'resolved_by_mentor', # More specific action
+        'action': 'resolved_by_mentor',
         'title': q.title,
         'mentor_id': session['userid'],
         'mentor_name': session['username'],
         'status': 'Resolved',
         'solution_text': q.solution,
-        'tags': q.tags, # Include tags
+        'tags': q.tags,
         'developer_name': User.query.filter_by(userid=q.submitted_by).first().username if q.submitted_by else 'Unknown'
     }, namespace='/')
 
@@ -395,7 +417,7 @@ def solve_query(qid):
 # ---------------- Admin ----------------
 
 @routes.route('/admin')
-def admin_dashboard(): # Renamed to avoid conflict
+def admin_dashboard():
     if session.get('role') != 'admin':
         return redirect('/login')
 
@@ -405,7 +427,7 @@ def admin_dashboard(): # Renamed to avoid conflict
     raw_data = db.session.query(Query, Developer.username.label('developer_name'), Mentor.username.label('mentor_name')) \
         .outerjoin(Developer, Query.submitted_by == Developer.userid) \
         .outerjoin(Mentor, Query.assigned_to == Mentor.userid) \
-        .order_by(Query.id.desc()).all() # Order by ID for consistency
+        .order_by(Query.id.desc()).all()
 
     queries = []
     for q, dev_name, ment_name in raw_data:
@@ -413,10 +435,9 @@ def admin_dashboard(): # Renamed to avoid conflict
         q.mentor_name = ment_name
         queries.append(q)
 
-    # For admin, get ALL mentors, regardless of assignment, for manual assignment dropdown
     all_mentors = User.query.filter_by(role='mentor').all()
 
-    return render_template('admin.html', queries=queries, mentors=all_mentors) # Pass all_mentors to admin for manual assignment
+    return render_template('admin.html', queries=queries, mentors=all_mentors)
 
 
 @routes.route('/admin/assign/<int:query_id>', methods=['POST'])
@@ -435,7 +456,6 @@ def admin_assign_mentor(query_id):
         db.session.commit()
         log_event(f"Admin {session['username']} assigned mentor {mentor_id} to query {query.title}")
         
-        # Emit SocketIO event for real-time update
         socketio.emit('query_updated', {
             'query_id': query.id,
             'action': 'assigned_by_admin',
@@ -444,7 +464,7 @@ def admin_assign_mentor(query_id):
             'mentor_name': mentor_username,
             'admin_name': session['username'],
             'status': 'In Progress',
-            'tags': query.tags, # Include tags
+            'tags': query.tags,
             'developer_name': User.query.filter_by(userid=query.submitted_by).first().username if query.submitted_by else 'Unknown'
         }, namespace='/')
 
@@ -457,17 +477,15 @@ def admin_revoke_mentor(query_id):
     if not query.assigned_to:
         flash("No mentor assigned to this query.", "info")
     else:
-        # Store revoked mentor's ID and name before nullifying
         revoked_mentor_id = query.assigned_to 
         revoked_mentor_user = User.query.filter_by(userid=revoked_mentor_id).first()
         revoked_mentor_name = revoked_mentor_user.username if revoked_mentor_user else 'Unknown Mentor'
 
         log_event(f"Admin {session['username']} revoked mentor {revoked_mentor_id} from query {query.title}")
         query.assigned_to = None
-        query.status = 'Open' # Query becomes 'Open' again for re-assignment
+        query.status = 'Open'
         db.session.commit()
         
-        # Emit SocketIO event for real-time update
         socketio.emit('query_updated', {
             'query_id': query.id,
             'action': 'revoked_by_admin',
@@ -475,8 +493,8 @@ def admin_revoke_mentor(query_id):
             'revoked_mentor_id': revoked_mentor_id,
             'revoked_mentor_name': revoked_mentor_name,
             'admin_name': session['username'],
-            'status': 'Open', # New status
-            'tags': query.tags, # Include tags
+            'status': 'Open',
+            'tags': query.tags,
             'developer_name': User.query.filter_by(userid=query.submitted_by).first().username if query.submitted_by else 'Unknown'
         }, namespace='/')
 
@@ -506,10 +524,9 @@ def update_profile():
             if new_password and new_password.strip():
                 user.password = generate_password_hash(new_password)
 
-            # Update expertise for mentors
             if user.role == 'mentor':
-                selected_expertise = request.form.getlist('expertise') # getlist for multi-select
-                user.expertise = ','.join(selected_expertise) # Join into a comma-separated string
+                selected_expertise_str = request.form.get('expertise', '')
+                user.expertise = selected_expertise_str 
 
             db.session.commit()
             log_event(f"Profile Updated: {user.username} (ID: {user.userid}, Role: {user.role})")
@@ -525,7 +542,6 @@ def update_profile():
         print(traceback.format_exc())
         flash("An error occurred. Please try again later.", "danger")
     
-    # For GET request, render the template
     return render_template('update_profile.html', user=user)
 
 @routes.route('/delete_account', methods=['POST'])
@@ -535,9 +551,8 @@ def delete_account():
 
     user = User.query.filter_by(userid=session['userid']).first()
 
-    if user: # Ensure user exists before trying to delete
-        # Also delete user's queries where they were submitter or assignee
-        Query.query.filter((Query.submitted_by == user.userid) | (Query.assigned_to == user.userid)).delete(synchronize_session=False) # synchronize_session=False for delete() on a query
+    if user:
+        Query.query.filter((Query.submitted_by == user.userid) | (Query.assigned_to == user.userid)).delete(synchronize_session=False)
 
         db.session.delete(user)
         db.session.commit()
