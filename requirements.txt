@@ -6,3 +6,5 @@ eventlet
 flask-session
 dotenv
 psycopg2-binary
+APScheduler # For scheduling tasks
+flask-cors # For handling CORS issues

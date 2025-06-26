@@ -4,13 +4,48 @@
   <meta charset="UTF-8">
   <title>Developer Dashboard</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Removed: Bootstrap-select CSS -->
   <style>.toast-container { position: fixed; top:1rem; right:1rem; z-index:9999; }</style>
+  <style>
+    /* Custom styling for the dropdown checkboxes */
+    .dropdown-menu-checkboxes {
+        max-height: 250px;
+        overflow-y: auto;
+        padding: 0.5rem;
+    }
+    .dropdown-menu-checkboxes .form-check {
+        padding: 0.25rem 1rem;
+    }
+    .dropdown-menu-checkboxes .form-check-input {
+        margin-right: 0.5rem;
+    }
+  </style>
 </head>
 <body>
 <div class="container mt-4">
   <div class="toast-container" id="toastContainer"></div>
-  <h2>Developer Dashboard - {{ session['username'] }}</h2>
-  <a href="/logout" class="btn btn-danger mb-3">Logout</a>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Developer Dashboard - {{ session['username'] }}</h2>
+    
+    <!-- Settings Dropdown -->
+    <div class="dropdown">
+      <button class="btn btn-secondary dropdown-toggle" type="button" id="settingsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+        Settings
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="settingsDropdown">
+        <li><a class="dropdown-item" href="/update_profile">Update Profile</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li>
+          <form action="/delete_account" method="POST" onsubmit="return confirm('Are you sure you want to delete your account? This action cannot be undone.');">
+            <button type="submit" class="dropdown-item text-danger">Delete Account</button>
+          </form>
+        </li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="/logout">Logout</a></li>
+      </ul>
+    </div>
+  </div>
+
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% for category, message in messages %}
       <div class="alert alert-{{category}} alert-dismissible fade show">{{message}}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
@@ -19,47 +54,73 @@
 
   <form method="POST" class="mb-4">
     <div class="mb-3">
-      <label>Title</label>
-      <input name="title" class="form-control" required>
+      <label for="title" class="form-label">Title</label>
+      <input name="title" id="title" class="form-control" required>
     </div>
     <div class="mb-3">
-      <label>Description</label>
-      <textarea name="description" class="form-control" rows="3" required></textarea>
+      <label for="description" class="form-label">Description</label>
+      <textarea name="description" id="description" class="form-control" rows="3" required></textarea>
     </div>
-    <button class="btn btn-success">Submit Query</button>
+
+    <!-- MODIFIED: Tags Selection as custom multi-select dropdown with checkboxes -->
+    <div class="mb-3">
+      <label class="form-label">Tags (Select all that apply):</label>
+      <div class="dropdown">
+        <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" id="dropdownTagsButton" data-bs-toggle="dropdown" aria-expanded="false">
+          Select Tags
+        </button>
+        <ul class="dropdown-menu dropdown-menu-checkboxes w-100" aria-labelledby="dropdownTagsButton">
+          {% set tags_list = ['Frontend', 'Backend', 'Database', 'DevOps', 'Bug', 'Feature Request', 'Performance', 'Security', 'Question', 'Environment Setup'] %}
+          {% for tag in tags_list %}
+          <li>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" value="{{ tag }}" id="checkTag{{ loop.index }}">
+              <label class="form-check-label" for="checkTag{{ loop.index }}">{{ tag }}</label>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        <!-- Hidden input to store selected tags as a comma-separated string -->
+        <input type="hidden" name="tags" id="hiddenTagsInput" required>
+      </div>
+    </div>
+    <!-- END MODIFIED -->
+
+    <button type="submit" class="btn btn-success">Submit Query</button>
   </form>
 
   <h3>Your Queries</h3>
   <table class="table table-bordered">
     <thead>
-  <tr>
-    <th>Title</th>
-    <th>Description</th>
-    <th>Mentor</th>
-    <th>Status</th>
-    <th>Solution</th> {# Add this line #}
-    <th>Actions</th>
-  </tr>
-</thead>
+      <tr>
+        <th>Title</th>
+        <th>Description</th>
+        <th>Tags</th>
+        <th>Mentor</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
     <tbody>
-  {% for q in queries %}
-  <tr>
-    <td>{{ q.title }}</td>
-    <td>{{ q.description }}</td>
-    <td>{{ q.mentor_name or 'None' }}</td>
-    <td>{{ q.status }}</td>
-    <td>{{ q.solution or 'N/A' }}</td> {# Add this line #}
-    <td>
-      <a href="/developer/edit/{{ q.id }}" class="btn btn-sm btn-primary">Edit</a>
-      <form action="/developer/delete/{{ q.id }}" method="POST" style="display:inline;">
-        <button class="btn btn-sm btn-danger">Delete</button>
-      </form>
-    </td>
-  </tr>
-  {% endfor %}
-</tbody>
+      {% for q in queries %}
+      <tr>
+        <td>{{ q.title }}</td>
+        <td>{{ q.description }}</td>
+        <td>{{ q.tags or 'N/A' }}</td>
+        <td>{{ q.mentor_name or 'None' }}</td>
+        <td>{{ q.status }}</td>
+        <td>
+          <a href="/developer/edit/{{ q.id }}" class="btn btn-sm btn-primary">Edit</a>
+          <form action="/developer/delete/{{ q.id }}" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this query?');">
+            <button class="btn btn-sm btn-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
   </table>
 </div>
+<!-- Existing scripts -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.min.js"></script>
 <script>
     var socket = io(); // Connect to the Socket.IO server (defaults to current host/port)
@@ -68,20 +129,61 @@
         console.log('Connected to Socket.IO server!');
     });
 
-    // Listen for the generic 'query_updated' event
     socket.on('query_updated', function(data) {
         console.log('Real-time update received:', data);
-        // This is the simplest way to update the view for now:
         window.location.reload(); 
-        // A more advanced solution would involve updating specific DOM elements
-        // without a full page reload, especially if you're using DataTables.
     });
 
     socket.on('disconnect', function() {
         console.log('Disconnected from Socket.IO server!');
     });
 </script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="{{ url_for('static', filename='js/socketHandlers.js') }}"></script>
+<!-- NEW CUSTOM JAVASCRIPT FOR MULTI-SELECT DROPDOWN -->
+<script>
+  $(document).ready(function() {
+    // Prevent dropdown from closing when clicking inside
+    $('.dropdown-menu-checkboxes').on('click', function(e) {
+      e.stopPropagation();
+    });
+
+    // Function to update the hidden input and button text
+    function updateSelectedTags() {
+      var selectedTags = [];
+      $('#dropdownTagsButton').next('.dropdown-menu-checkboxes').find('input[type="checkbox"]:checked').each(function() {
+        selectedTags.push($(this).val());
+      });
+
+      $('#hiddenTagsInput').val(selectedTags.join(',')); // Update hidden input
+      
+      // Update button text
+      if (selectedTags.length === 0) {
+        $('#dropdownTagsButton').text('Select Tags');
+      } else if (selectedTags.length === 1) {
+        $('#dropdownTagsButton').text(selectedTags[0]);
+      } else {
+        $('#dropdownTagsButton').text(selectedTags.length + ' selected');
+      }
+    }
+
+    // Attach change listener to checkboxes
+    $('#dropdownTagsButton').next('.dropdown-menu-checkboxes').find('input[type="checkbox"]').on('change', updateSelectedTags);
+
+    // Initial update in case of pre-selected values (not applicable here, but good practice)
+    updateSelectedTags();
+
+    // Custom validation for the hidden input (since 'required' on hidden input doesn't work visually)
+    // This makes sure at least one tag is selected before form submission
+    $('form').on('submit', function(event) {
+        if ($('#hiddenTagsInput').val() === '') {
+            alert('Please select at least one tag for your query.');
+            event.preventDefault(); // Stop form submission
+            $('#dropdownTagsButton').focus(); // Optionally focus the dropdown button
+        }
+    });
+
+  });
+</script>
 </body>
 </html>

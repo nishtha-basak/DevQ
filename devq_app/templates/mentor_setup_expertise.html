@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Set Your Expertise - DevQ</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Removed: Bootstrap-select CSS -->
+    <style>
+        /* Custom styling for the dropdown checkboxes */
+        .dropdown-menu-checkboxes {
+            max-height: 250px;
+            overflow-y: auto;
+            padding: 0.5rem;
+        }
+        .dropdown-menu-checkboxes .form-check {
+            padding: 0.25rem 1rem;
+        }
+        .dropdown-menu-checkboxes .form-check-input {
+            margin-right: 0.5rem;
+        }
+    </style>
+</head>
+<body class="bg-light">
+<div class="container mt-5">
+    <div class="toast-container" id="toastContainer"></div>
+    <h2 class="mb-4">Welcome, {{ session['username'] }}! Please Set Your Expertise</h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{category}} alert-dismissible fade show">{{message}}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+        {% endfor %}
+    {% endwith %}
+
+    <p class="lead">Select the areas where you can provide mentorship. You can select multiple options.</p>
+
+    <form method="POST">
+        <div class="mb-3">
+            <label class="form-label">Your Expertise Areas:</label>
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" id="dropdownExpertiseButton" data-bs-toggle="dropdown" aria-expanded="false">
+                  Select Expertise Tags
+                </button>
+                <ul class="dropdown-menu dropdown-menu-checkboxes w-100" aria-labelledby="dropdownExpertiseButton">
+                    {% set expertise_list = ['Frontend', 'Backend', 'Database', 'DevOps', 'Bug', 'Feature Request', 'Performance', 'Security', 'Question', 'Environment Setup'] %}
+                    {% for exp in expertise_list %}
+                    <li>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="{{ exp }}" id="checkExpertise{{ loop.index }}">
+                            <label class="form-check-label" for="checkExpertise{{ loop.index }}">{{ exp }}</label>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                <input type="hidden" name="expertise" id="hiddenExpertiseInput" required>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Save Expertise</button>
+        <a href="/logout" class="btn btn-secondary ms-2">Logout</a>
+    </form>
+</div>
+<!-- Existing scripts -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<!-- NEW CUSTOM JAVASCRIPT FOR MULTI-SELECT DROPDOWN -->
+<script>
+  $(document).ready(function() {
+    $('.dropdown-menu-checkboxes').on('click', function(e) {
+      e.stopPropagation();
+    });
+
+    function updateSelectedExpertise() {
+      var selectedExpertise = [];
+      $('#dropdownExpertiseButton').next('.dropdown-menu-checkboxes').find('input[type="checkbox"]:checked').each(function() {
+        selectedExpertise.push($(this).val());
+      });
+
+      $('#hiddenExpertiseInput').val(selectedExpertise.join(','));
+      
+      if (selectedExpertise.length === 0) {
+        $('#dropdownExpertiseButton').text('Select Expertise Tags');
+      } else if (selectedExpertise.length === 1) {
+        $('#dropdownExpertiseButton').text(selectedExpertise[0]);
+      } else {
+        $('#dropdownExpertiseButton').text(selectedExpertise.length + ' selected');
+      }
+    }
+
+    $('#dropdownExpertiseButton').next('.dropdown-menu-checkboxes').find('input[type="checkbox"]').on('change', updateSelectedExpertise);
+
+    updateSelectedExpertise(); // Initial call
+
+    $('form').on('submit', function(event) {
+        if ($('#hiddenExpertiseInput').val() === '') {
+            alert('Please select at least one expertise area.');
+            event.preventDefault();
+            $('#dropdownExpertiseButton').focus();
+        }
+    });
+
+  });
+</script>
+</body>
+</html>
